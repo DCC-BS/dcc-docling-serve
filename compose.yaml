@@ -1,7 +1,7 @@
 services:
   # ── vLLM serving GLM-OCR ──────────────────────────────────────────────
   vllm-glm-ocr:
-    image: vllm/vllm-openai:v0.26.0
+    image: vllm/vllm-openai:v0.27.1
     ipc: host
     env_file:
       - path: .env
