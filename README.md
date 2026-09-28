@@ -25,10 +25,12 @@ Each image is tagged with the upstream docling-serve version (e.g. `v2.3.0`) and
 
 The plugins are selectable per-request through the standard docling-serve API:
 
-- **Layout** -- `layout_custom_config: { "kind": "ppdoclayout-v3" }`
-- **OCR** -- `ocr_engine: "glm-ocr-remote"`
+- **Layout** -- `layout_preset: "ppdoclayout-v3"` (preset defined in `compose.yaml`) or
+  `layout_custom_config: { "kind": "ppdoclayout-v3" }`
+- **OCR** -- `ocr_preset: "glm-ocr-remote"`
 
-The patched Gradio UI also exposes all engines as selectable options.
+The docling-serve web UI at `/ui` is upstream's, unchanged. It lists both plugins
+among its OCR and layout choices.
 
 ## Architecture
 
@@ -82,9 +84,9 @@ This starts two services:
 | Service | Purpose |
 | --- | --- |
 | **vllm-glm-ocr** | vLLM server hosting `zai-org/GLM-OCR` (GPU 1) |
-| **docling-serve** | Docling API + Gradio UI with both plugins (GPU 0) |
+| **docling-serve** | Docling API + web UI with both plugins (GPU 0) |
 
-The Gradio UI is available at http://localhost:5001.
+The web UI is available at http://localhost:5001/ui.
 
 ### 4) Convert a document
 
@@ -150,7 +152,7 @@ docker run --add-host=host.docker.internal:host-gateway --rm \
   ghcr.io/dcc-bs/dcc-docling-serve:latest
 ```
 
-The Gradio UI is then available at http://localhost:5001.
+The web UI is then available at http://localhost:5001/ui.
 
 Because `make docker-build` tags the image with the name `compose.yaml` uses, the
 normal compose flow picks up the local build:
@@ -427,22 +429,23 @@ Note that the Jina runner uploads every document to r.jina.ai.
 
 ## Upgrading docling-serve
 
-Our image patches upstream in four places. Check each one before publishing an image
-built on a new docling-serve version (replace `v1.36.0` with the new tag).
+Our image changes upstream in a few places (plugins, GPU OCR, the shape patch). Check each
+one before publishing an image built on a new docling-serve version (replace `v1.36.0`
+with the new tag). Build the image first (step 2) for the checks that use it.
 
-1. **Gradio UI** (`plugins/gradio_ui.py` replaces upstream's file). Diff upstream's UI
-   between the old and the new version and port the changes. Also check that every
-   request field the UI sends still exists (in 1.33 upstream renamed `ocr` to `do_ocr`;
-   the old field was silently ignored). Upstream `main` has replaced the Gradio UI with a
-   bundled web UI (docling-serve#714, not released as of 1.35.0); the first release that
-   contains it needs a decision to port our additions (bounding-box view, curl panel,
-   PP-DocLayout-V3 choice) or drop `gradio_ui.py`. The image build fails on purpose while
-   upstream no longer mounts `gradio_ui.py`.
+1. **Plugins in the web UI.** We ship upstream's UI unchanged. Check that the plugins
+   still show up where the UI reads its choices from: `glm-ocr-remote` under the OCR
+   presets and `ppdoclayout-v3` under the layout presets (added by
+   `DOCLING_SERVE_CUSTOM_LAYOUT_PRESETS` in `compose.yaml`):
 
    ```bash
-   git -C ../docling-serve diff v1.35.0 v1.36.0 -- docling_serve/gradio_ui.py
-   docker run --rm --entrypoint python ghcr.io/docling-project/docling-serve-cpu:v1.36.0 -c \
-     "from docling_serve.datamodel.convert import ConvertDocumentsRequestOptions as O; print(sorted(O.model_fields))"
+   docker run -d --name upgrade-check -p 5099:5001 -e DOCLING_SERVE_ENABLE_UI=true \
+     -e DOCLING_SERVE_ALLOW_EXTERNAL_PLUGINS=true \
+     -e 'DOCLING_SERVE_CUSTOM_LAYOUT_PRESETS={"ppdoclayout-v3": {"kind": "ppdoclayout-v3"}}' \
+     dcc-docling-serve-test:cu130
+   curl -s localhost:5099/v1/capabilities | python3 -c "import sys, json; s = json.load(sys.stdin)['stages']; \
+     print([p['id'] for p in s['ocr']['presets']], [p['id'] for p in s['layout']['presets']])"
+   docker rm -f upgrade-check
    ```
 
 2. **Build the images locally** (CU130 and CPU at least). The build itself fails if
@@ -489,7 +492,7 @@ built on a new docling-serve version (replace `v1.36.0` with the new tag).
    ```
 
 6. **Plugins.** Run the e2e tests against the stack (GLM-OCR via vLLM, PP-DocLayout-V3)
-   and convert a document in the Gradio UI with both plugins selected.
+   and convert a document in the web UI with both plugins selected.
 
 7. **Publish.** Push, then run the *Build docling-serve with layout and OCR plugins*
    workflow manually with `docling_serve_tag=v1.36.0`, and update the input's default in

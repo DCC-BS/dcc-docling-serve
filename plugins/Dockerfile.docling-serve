@@ -12,17 +12,7 @@ RUN sh /tmp/install_onnxruntime_gpu.sh register-libs
 USER 1001
 
 RUN pip install --no-cache-dir "huggingface-hub>=1.3.0" \
-    && pip install --no-cache-dir --no-deps docling-glm-ocr docling-pp-doc-layout \
-    && pip install --no-cache-dir gradio
-
-COPY gradio_ui.py /tmp/gradio_ui.py
-RUN cp /tmp/gradio_ui.py \
-    "$(python -c 'from pathlib import Path; import docling_serve; print(Path(docling_serve.__file__).parent / "gradio_ui.py")')"
-# Fail instead of silently shipping without our UI when upstream stops mounting gradio_ui.py
-# (upstream main replaced it with a bundled web UI after v1.35.0)
-RUN APP="$(python -c 'from pathlib import Path; import docling_serve; print(Path(docling_serve.__file__).parent / "app.py")')" \
-    && grep -q "docling_serve.gradio_ui" "$APP" \
-    || { echo "docling-serve no longer mounts gradio_ui.py: port plugins/gradio_ui.py first (README: Upgrading docling-serve)" >&2; exit 1; }
+    && pip install --no-cache-dir --no-deps docling-glm-ocr docling-pp-doc-layout
 
 # Mute health-probe log records (site-packages drop-in, no upstream file touched)
 COPY mute_health_logs.py /tmp/mute_health_logs.py

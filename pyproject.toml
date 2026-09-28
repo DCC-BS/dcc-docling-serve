@@ -28,7 +28,6 @@ packages = ["src/docling_serve_plugins"]
 line-length = 120
 indent-width = 4
 target-version = "py313"
-extend-exclude = ["plugins/gradio_ui.py"]
 
 [tool.ruff.lint]
 select = [

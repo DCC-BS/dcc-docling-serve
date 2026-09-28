@@ -60,6 +60,8 @@ services:
       DOCLING_SERVE_ENABLE_REMOTE_SERVICES: "true"
       DOCLING_SERVE_ALLOW_EXTERNAL_PLUGINS: "true"
       DOCLING_SERVE_ALLOW_CUSTOM_LAYOUT_CONFIG: "true"
+      # Offer the PP-DocLayout-V3 plugin as a layout preset (API: layout_preset, and in the UI)
+      DOCLING_SERVE_CUSTOM_LAYOUT_PRESETS: '{"ppdoclayout-v3": {"kind": "ppdoclayout-v3"}}'
       DOCLING_SERVE_LOG_LEVEL: "${DOCLING_SERVE_LOG_LEVEL:-INFO}"
       GLMOCR_REMOTE_OCR_API_URL: http://vllm-glm-ocr:8000/v1/chat/completions
     depends_on:
