@@ -205,6 +205,22 @@ All environment variables above correspond to fields on `GlmOcrRemoteOptions` an
 - [`docling-glm-ocr` README](https://github.com/DCC-BS/docling-glm-ocr#configuration)
 - [`docling-pp-doc-layout` README](https://github.com/DCC-BS/docling-pp-doc-layout#configuration-options)
 
+## RapidOCR on the GPU
+
+The upstream CUDA images ship the CPU-only `onnxruntime`, so RapidOCR (the default
+OCR engine, onnxruntime backend) runs on the CPU even on a GPU and dominates the
+processing time. `plugins/install_onnxruntime_gpu.sh` fixes this at build time for
+every image whose torch has CUDA support. CPU images are left unchanged.
+
+- It replaces `onnxruntime` with the matching `onnxruntime-gpu`: PyPI for CUDA 13
+  (same version as upstream), the onnxruntime CUDA 12 feed for CUDA 12.
+- It registers the CUDA/cuDNN libraries of the `nvidia-*` wheels with `ldconfig`,
+  so the CUDA provider loads regardless of whether torch was imported first.
+- The build fails if `CUDAExecutionProvider` is missing or its libraries do not resolve.
+
+No request option is needed. docling already enables CUDA for RapidOCR when the
+accelerator device is CUDA, which it is by default when a GPU is visible.
+
 ## Health-probe log muting
 
 Kubernetes/Compose liveness probes hitting `GET /health` produce two INFO records

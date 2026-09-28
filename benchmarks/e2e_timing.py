@@ -290,6 +290,13 @@ def main() -> None:
     parser.add_argument("--docs", type=Path, required=True, help="Folder with the documents to convert")
     parser.add_argument("--variants", nargs="+", choices=list(VARIANTS), default=list(VARIANTS))
     parser.add_argument("--tag", default="v1.35.0", help="Tag of all docling-serve images (default: %(default)s)")
+    parser.add_argument(
+        "--image",
+        action="append",
+        default=[],
+        metavar="VARIANT=IMAGE",
+        help="Use IMAGE (with tag) for VARIANT instead of the registry image, e.g. a local build",
+    )
     parser.add_argument("--repeats", type=int, default=3, help="Timed conversions per document (default: %(default)s)")
     parser.add_argument("--gpu-device", default="0", help="GPU index for the GPU variants (default: %(default)s)")
     parser.add_argument("--port", type=int, default=5091, help="Host port for the containers (default: %(default)s)")
@@ -312,6 +319,10 @@ def main() -> None:
     raw_path = out_dir / "raw.jsonl"
     records: list[dict] = []
 
+    overrides = dict(item.split("=", 1) for item in args.image)
+    if unknown := set(overrides) - {v for v, (image, _) in VARIANTS.items() if image}:
+        sys.exit(f"--image only applies to docling-serve variants, not {sorted(unknown)}")
+
     for variant in args.variants:
 
         def record(event: dict, variant: str = variant) -> None:
@@ -325,7 +336,8 @@ def main() -> None:
             if image is None:
                 run_local(docs, warmup, args, record)
             else:
-                ServeRunner(variant, f"{image}:{args.tag}", gpu, args).run(docs, warmup, record)
+                image = overrides.get(variant, f"{image}:{args.tag}")
+                ServeRunner(variant, image, gpu, args).run(docs, warmup, record)
         except Exception as error:  # keep going so one broken variant does not lose the others
             log(f"{variant}: FAILED: {error}")
             record({"kind": "error", "error": str(error)})
