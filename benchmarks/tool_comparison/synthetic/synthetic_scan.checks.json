@@ -1,0 +1,77 @@
+[
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Basel, 14. Februar 2025"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Betreff: Gesuch um Verl\u00e4ngerung der Bewilligung"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Sehr geehrte Damen und Herren"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Hiermit beantrage ich die Verl\u00e4ngerung der Bewilligung f\u00fcr den Marktstand auf dem Barf\u00fcsserplatz um weitere zw\u00f6lf Monate. Der Stand wird unver\u00e4ndert an Samstagen von 8 bis 16 Uhr betrieben."
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Die geforderten Unterlagen, namentlich die Haftpflichtversicherung und die Best\u00e4tigung der Lebensmittelkontrolle, liegen diesem Schreiben bei."
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Freundliche Gr\u00fcsse"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Peter Beispiel"
+  },
+  {
+    "category": "heading",
+    "page": 2,
+    "text": "Betriebsbericht Informatik"
+  },
+  {
+    "category": "body",
+    "page": 2,
+    "text": "Die folgende Abbildung zeigt einen Ausschnitt aus dem \u00dcberwachungssystem. Alle Dienste waren im Berichtsmonat verf\u00fcgbar, mit Ausnahme einer geplanten Wartung am 9. M\u00e4rz."
+  },
+  {
+    "category": "bitmap_text",
+    "page": 2,
+    "text": "Dienststatus Rechenzentrum"
+  },
+  {
+    "category": "bitmap_text",
+    "page": 2,
+    "text": "Webportal Verf\u00fcgbar 99.98 %"
+  },
+  {
+    "category": "bitmap_text",
+    "page": 2,
+    "text": "E-Mail Verf\u00fcgbar 100.00 %"
+  },
+  {
+    "category": "bitmap_text",
+    "page": 2,
+    "text": "Archiv Wartung 97.40 %"
+  },
+  {
+    "category": "body",
+    "page": 2,
+    "text": "Abbildung 3: Bildschirmfoto des \u00dcberwachungssystems."
+  },
+  {
+    "category": "body",
+    "page": 2,
+    "text": "Abbildung 4: Serverraum (Symbolbild)."
+  }
+]

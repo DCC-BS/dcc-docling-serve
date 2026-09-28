@@ -1,0 +1,97 @@
+{
+  "_findings": [
+    "For structured output (headings, tables, scans) the choice is between docling and marker; markitdown and Jina Reader return mostly flat text, and docTR is pure OCR.",
+    "docling with GPU OCR and the shape patch produces the same markdown as today's docling (22 of 27 documents byte-identical, the rest \u2265 97.7 % similar) in 165 s instead of 1'300 s: 7.9\u00d7 faster, 0.25 s per page.",
+    "marker scores best against the synthetic ground truth (body F1 0.98, reading order 0.99) and is the only tool that writes formulas as LaTeX, but it is the slowest per page, needs 2.5 minutes to load its models, and loses the body of long tables (CELEX annexes).",
+    "No tool gets everything: docling and marker drop text inside pictures (chart labels, and in docling's case four of the five architectural plans); docTR reads all of it but with OCR errors and weak structure.",
+    "The text-layer recall on real documents favours tools that dump the PDF text as is (Jina, markitdown). It measures completeness, not correct markdown; use the synthetic scores and the Compare tab for structure."
+  ],
+  "docling-gpu-ocr": {
+    "cons": [
+      "Still OCRs every region that touches a table rule, underline or background fill, so born-digital documents stay OCR-bound (CELEX 367 s).",
+      "Same content gaps as docling today (pictures, formulas)."
+    ],
+    "pros": [
+      "Markdown identical to today's docling on 25 of 27 documents.",
+      "522 s instead of 1'300 s; OCR runs on the GPU."
+    ],
+    "verdict": "Same output as today, 2.5\u00d7 faster."
+  },
+  "docling-gpu-ocr-noshape": {
+    "cons": [
+      "Same content gaps as docling today (text inside pictures, formulas).",
+      "Relies on a local patch of a docling internal (DCC_OCR_IGNORE_SHAPES), to be re-checked on every docling upgrade."
+    ],
+    "pros": [
+      "165 s in total, 0.25 s per page, CELEX in 88 s instead of 940 s.",
+      "Same markdown as docling today on 22 of 27 documents, \u2265 97.7 % similar on the rest; identical ground-truth scores.",
+      "Scans and embedded images are still OCR'd; only regions that already have PDF text are skipped."
+    ],
+    "verdict": "Recommended default: docling's quality at 7.9\u00d7 the speed."
+  },
+  "docling-today": {
+    "cons": [
+      "Slowest in this comparison: 1'300 s in total, 0.96 s per page, 940 s for the 603-page CELEX regulation, because RapidOCR runs on the CPU and vector shapes send born-digital text to OCR.",
+      "Drops text inside pictures: four of the five architectural plans come out as a single <!-- image --> (0\u201316 % of their text), chart labels only 13 %.",
+      "Formulas become <!-- formula-not-decoded --> (431 on the arXiv papers) unless the slow formula enrichment is enabled.",
+      "Occasional reading-order slips (a KPI box moved to the end of the page)."
+    ],
+    "pros": [
+      "Headings, tables and image placeholders on real documents; tables perfect on the synthetic set (1.00, including merged header cells).",
+      "Uses the PDF text where it exists and OCRs the rest: scanned page 0.99, text in embedded screenshots 1.00.",
+      "Leaves page headers and footers out of the markdown, as intended."
+    ],
+    "verdict": "Best structure for office documents, but slow as configured today."
+  },
+  "doctr": {
+    "cons": [
+      "Ignores the PDF text layer: OCR errors even on born-digital pages (\"tamonomy\", \"km?\" for km\u00b2), precision 0.85 against the text layer.",
+      "Weakest tables among the structured tools (0.73), KPI boxes split into loose lines, no image placeholders.",
+      "Needs a community multilingual recognizer for German: the built-in models lack \u00e4, \u00f6, \u00fc and \u00df."
+    ],
+    "pros": [
+      "Fast on the GPU: 283 s in total, 0.28 s per page.",
+      "The only tool that recovers every text source on the synthetic set: chart labels, outlined text, screenshots, scans, headers (all 1.00).",
+      "Layout and table detection give headings (1.00 on the synthetic set) and many tables."
+    ],
+    "verdict": "Reads everything that is visible, structure is weak and OCR errors creep into digital PDFs."
+  },
+  "jina": {
+    "cons": [
+      "No tables (0.00) and few headings (0.37): tables and KPI boxes become running text.",
+      "No OCR: scanned page 2 %, screenshot text 18 %.",
+      "Every document is uploaded to an external service; slow on large files (117 s for the 40 MB plan, 42 s for the Offerte) and billed per token."
+    ],
+    "pros": [
+      "Highest text-layer recall and precision (0.98 / 0.98): close to a direct dump of the PDF text.",
+      "No local infrastructure; the 603-page CELEX regulation in 8 s."
+    ],
+    "verdict": "Complete text, flat structure, and documents leave the premises."
+  },
+  "marker": {
+    "cons": [
+      "Slowest per page (1.08 s median) plus about 150 s startup to load its models; 570 s in total.",
+      "Loses table bodies on long multi-page tables: on CELEX 120 pages keep less than half of their text, often only the header row.",
+      "Drops chart labels (13 %) and part of the text in embedded screenshots (75 %); leaves <span> fragments in tables.",
+      "GPL-3.0 code and model weights under a restricted licence; check before production use."
+    ],
+    "pros": [
+      "Best ground-truth scores: body F1 0.98, reading order 0.99, headings 1.00, scanned page 1.00.",
+      "Formulas as LaTeX (\u22484'300 math spans on the arXiv papers) and clean bold/heading markup.",
+      "Recovers 17\u201382 % of the text on the three architectural plans where docling returns nothing."
+    ],
+    "verdict": "Most faithful markdown on the synthetic set; heavy, and loses long tables."
+  },
+  "markitdown": {
+    "cons": [
+      "No OCR: the scanned page, screenshots and outlined text are lost (2 %, 18 %, 4 %).",
+      "No headings at all; turns layout blocks into tables with empty filler columns.",
+      "Word spacing breaks on some LaTeX PDFs (\"Reasoningmodelsoften\u2026\", 44 % recall on one paper)."
+    ],
+    "pros": [
+      "Fastest by far: 43 s for all 976 pages, 0.05 s per page, CPU only, no models.",
+      "High text completeness on clean born-digital PDFs (text-layer recall 0.91)."
+    ],
+    "verdict": "Instant plain-text extraction; no OCR and little structure."
+  }
+}

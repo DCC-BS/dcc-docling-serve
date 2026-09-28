@@ -1,0 +1,162 @@
+[
+  {
+    "category": "heading",
+    "page": 1,
+    "text": "Quartalsbericht Energieverbrauch 2025"
+  },
+  {
+    "category": "body",
+    "page": 1,
+    "text": "Der Energieverbrauch der kantonalen Verwaltung ist im Jahr 2025 gegen\u00fcber dem Vorjahr um 4,2 Prozent gesunken. Die gr\u00f6ssten Einsparungen wurden im dritten Quartal erzielt, als mehrere Geb\u00e4ude an das Fernw\u00e4rmenetz angeschlossen wurden."
+  },
+  {
+    "category": "heading",
+    "page": 1,
+    "text": "Verbrauch nach Quartal"
+  },
+  {
+    "category": "chart_text",
+    "page": 1,
+    "text": "Verbrauch pro Quartal (MWh)"
+  },
+  {
+    "category": "chart_text",
+    "page": 1,
+    "text": "400"
+  },
+  {
+    "category": "chart_text",
+    "page": 1,
+    "text": "800"
+  },
+  {
+    "category": "chart_text",
+    "page": 1,
+    "text": "1200"
+  },
+  {
+    "category": "chart_text",
+    "page": 1,
+    "text": "Q1"
+  },
+  {
+    "category": "chart_text",
+    "page": 1,
+    "text": "1'240"
+  },
+  {
+    "category": "chart_text",
+    "page": 1,
+    "text": "Q2"
+  },
+  {
+    "category": "chart_text",
+    "page": 1,
+    "text": "980"
+  },
+  {
+    "category": "chart_text",
+    "page": 1,
+    "text": "Q3"
+  },
+  {
+    "category": "chart_text",
+    "page": 1,
+    "text": "760"
+  },
+  {
+    "category": "chart_text",
+    "page": 1,
+    "text": "Q4"
+  },
+  {
+    "category": "chart_text",
+    "page": 1,
+    "text": "1'105"
+  },
+  {
+    "category": "body",
+    "page": 1,
+    "text": "Abbildung 1: Energieverbrauch der Verwaltung pro Quartal 2025."
+  },
+  {
+    "category": "heading",
+    "page": 2,
+    "text": "Temperatur und Energiemix"
+  },
+  {
+    "category": "outlined_text",
+    "page": 2,
+    "text": "Temperaturverlauf Basel 2025"
+  },
+  {
+    "category": "outlined_text",
+    "page": 2,
+    "text": "0 \u00b0C"
+  },
+  {
+    "category": "outlined_text",
+    "page": 2,
+    "text": "10 \u00b0C"
+  },
+  {
+    "category": "outlined_text",
+    "page": 2,
+    "text": "20 \u00b0C"
+  },
+  {
+    "category": "outlined_text",
+    "page": 2,
+    "text": "Jan"
+  },
+  {
+    "category": "outlined_text",
+    "page": 2,
+    "text": "Feb"
+  },
+  {
+    "category": "outlined_text",
+    "page": 2,
+    "text": "M\u00e4r"
+  },
+  {
+    "category": "outlined_text",
+    "page": 2,
+    "text": "Apr"
+  },
+  {
+    "category": "outlined_text",
+    "page": 2,
+    "text": "Mai"
+  },
+  {
+    "category": "outlined_text",
+    "page": 2,
+    "text": "Jun"
+  },
+  {
+    "category": "body",
+    "page": 2,
+    "text": "Abbildung 2: Monatsmittel der Lufttemperatur (Beschriftung als Vektorpfade)."
+  },
+  {
+    "category": "chart_text",
+    "page": 2,
+    "text": "Solar 42 %"
+  },
+  {
+    "category": "chart_text",
+    "page": 2,
+    "text": "Wind 31 %"
+  },
+  {
+    "category": "chart_text",
+    "page": 2,
+    "text": "Wasserkraft 27 %"
+  },
+  {
+    "category": "body",
+    "page": 2,
+    "text": "Der Anteil erneuerbarer Energien am zugekauften Strom lag bei 100 Prozent. F\u00fcr 2026 ist ein weiterer Ausbau der Photovoltaik auf Schulhausd\u00e4chern geplant."
+  }
+]

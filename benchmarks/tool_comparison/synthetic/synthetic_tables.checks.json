@@ -1,0 +1,197 @@
+[
+  {
+    "category": "furniture",
+    "page": 1,
+    "text": "Statistisches Amt \u2013 Tabellenbericht"
+  },
+  {
+    "category": "furniture",
+    "page": 1,
+    "text": "Seite 1 von 2"
+  },
+  {
+    "category": "heading",
+    "page": 1,
+    "text": "Bev\u00f6lkerung und Wohnen in Basel-Stadt"
+  },
+  {
+    "category": "heading",
+    "page": 1,
+    "text": "Tabelle mit Rahmen"
+  },
+  {
+    "category": "table",
+    "page": 1,
+    "text": "Wohnviertel Einwohner Fl\u00e4che km\u00b2 Dichte"
+  },
+  {
+    "category": "table",
+    "page": 1,
+    "text": "Altstadt Grossbasel 2'134 0.37 5'768"
+  },
+  {
+    "category": "table",
+    "page": 1,
+    "text": "Vorst\u00e4dte 4'512 0.99 4'558"
+  },
+  {
+    "category": "table",
+    "page": 1,
+    "text": "Am Ring 10'873 1.07 10'162"
+  },
+  {
+    "category": "table",
+    "page": 1,
+    "text": "Breite 8'921 0.86 10'373"
+  },
+  {
+    "category": "table",
+    "page": 1,
+    "text": "St. Johann 20'317 2.51 8'094"
+  },
+  {
+    "category": "heading",
+    "page": 1,
+    "text": "Tabelle ohne Rahmen"
+  },
+  {
+    "category": "table",
+    "page": 1,
+    "text": "Jahr Geburten Todesf\u00e4lle Saldo"
+  },
+  {
+    "category": "table",
+    "page": 1,
+    "text": "2022 1'861 1'912 -51"
+  },
+  {
+    "category": "table",
+    "page": 1,
+    "text": "2023 1'790 1'874 -84"
+  },
+  {
+    "category": "table",
+    "page": 1,
+    "text": "2024 1'822 1'801 21"
+  },
+  {
+    "category": "heading",
+    "page": 1,
+    "text": "Tabelle mit verbundenen Kopfzellen"
+  },
+  {
+    "category": "table",
+    "page": 1,
+    "text": "Altersgruppe Schweiz M\u00e4nner Schweiz Frauen Ausland M\u00e4nner Ausland Frauen"
+  },
+  {
+    "category": "table",
+    "page": 1,
+    "text": "0\u201319 Jahre 9'812 9'344 4'120 3'987"
+  },
+  {
+    "category": "table",
+    "page": 1,
+    "text": "20\u201364 Jahre 38'201 37'655 21'433 19'870"
+  },
+  {
+    "category": "body",
+    "page": 1,
+    "text": "\u00b9 Quelle: Kantonales Einwohnerregister, Stichtag 31. Dezember 2024."
+  },
+  {
+    "category": "furniture",
+    "page": 2,
+    "text": "Statistisches Amt \u2013 Tabellenbericht"
+  },
+  {
+    "category": "furniture",
+    "page": 2,
+    "text": "Seite 2 von 2"
+  },
+  {
+    "category": "heading",
+    "page": 2,
+    "text": "Antragsformular"
+  },
+  {
+    "category": "body",
+    "page": 2,
+    "text": "Name Muster"
+  },
+  {
+    "category": "body",
+    "page": 2,
+    "text": "Vorname Anna"
+  },
+  {
+    "category": "body",
+    "page": 2,
+    "text": "Geburtsdatum 12.03.1985"
+  },
+  {
+    "category": "body",
+    "page": 2,
+    "text": "Gemeinde Riehen"
+  },
+  {
+    "category": "body",
+    "page": 2,
+    "text": "Ich best\u00e4tige die Richtigkeit der Angaben."
+  },
+  {
+    "category": "heading",
+    "page": 2,
+    "text": "Zweispaltiger Text"
+  },
+  {
+    "category": "body",
+    "page": 2,
+    "text": "Die linke Spalte beschreibt die Methodik. Alle Angaben beruhen auf dem kantonalen Einwohnerregister und werden j\u00e4hrlich per Stichtag ausgewertet. Personen im Asylprozess sind nicht enthalten."
+  },
+  {
+    "category": "body",
+    "page": 2,
+    "text": "Die rechte Spalte fasst die Resultate zusammen. Die Bev\u00f6lkerung wuchs um 0,8 Prozent, getrieben durch Zuwanderung. Die Geburtenzahl blieb stabil, die Zahl der Todesf\u00e4lle sank leicht."
+  },
+  {
+    "category": "heading",
+    "page": 2,
+    "text": "Aufz\u00e4hlungen"
+  },
+  {
+    "category": "body",
+    "page": 2,
+    "text": "Wohnungsbestand nach Zimmerzahl"
+  },
+  {
+    "category": "body",
+    "page": 2,
+    "text": "Leerstandsquote nach Wohnviertel"
+  },
+  {
+    "category": "body",
+    "page": 2,
+    "text": "Mietpreise pro Quadratmeter"
+  },
+  {
+    "category": "body",
+    "page": 2,
+    "text": "Daten erheben"
+  },
+  {
+    "category": "body",
+    "page": 2,
+    "text": "Plausibilisieren"
+  },
+  {
+    "category": "body",
+    "page": 2,
+    "text": "Publizieren"
+  },
+  {
+    "category": "body",
+    "page": 2,
+    "text": "Dichte = Einwohner / Fl\u00e4che"
+  }
+]

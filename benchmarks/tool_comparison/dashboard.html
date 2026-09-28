@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF Converter Comparison</title>
+<script src="https://cdn.jsdelivr.net/npm/diff@5.2.0/dist/diff.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<script src="data/summary.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --raised: #ffffff;
+  --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
+  --bar: #2a78d6; --accent: #2a78d6;
+  --add: #e3f4e9; --add-ink: #0b5d2a; --del: #fbe4e2; --del-ink: #8f1d17;
+  --critical: #d03b3b; --good: #0ca30c; --warning: #fab219;
+  --s100:#cde2fb; --s150:#b7d3f6; --s200:#9ec5f4; --s250:#86b6ef; --s300:#6da7ec; --s350:#5598e7;
+  --s400:#3987e5; --s450:#2a78d6; --s500:#256abf; --s550:#1c5cab; --s600:#184f95; --s650:#104281; --s700:#0d366b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --raised: #222220;
+    --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+    --bar: #3987e5; --accent: #6da7ec;
+    --add: #163823; --add-ink: #9be2b3; --del: #45201d; --del-ink: #f2b0aa;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --raised: #222220;
+  --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+  --bar: #3987e5; --accent: #6da7ec;
+  --add: #163823; --add-ink: #9be2b3; --del: #45201d; --del-ink: #f2b0aa;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { padding: 24px 24px 0; max-width: 1500px; margin: 0 auto; }
+h1 { font-size: 22px; margin: 0; }
+h2 { font-size: 16px; margin: 0 0 4px; }
+h3 { font-size: 14px; margin: 0 0 6px; }
+.sub { color: var(--ink-2); margin: 4px 0 0; max-width: 900px; }
+nav { display: flex; gap: 4px; margin-top: 16px; border-bottom: 1px solid var(--grid); overflow-x: auto; }
+nav button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 12px; font: inherit; color: var(--ink-2); cursor: pointer; white-space: nowrap; }
+nav button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+main { max-width: 1500px; margin: 0 auto; padding: 20px 24px 60px; }
+section[hidden] { display: none; }
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
+.card { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 16px; min-width: 0; }
+.card p.note { color: var(--muted); font-size: 12px; margin: 2px 0 12px; }
+.tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 16px; }
+.tile { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 12px 14px; }
+.tile .v { font-size: 24px; font-weight: 650; }
+.tile .l { color: var(--ink-2); font-size: 12px; }
+svg text { fill: var(--ink-2); font: 12px system-ui, sans-serif; }
+svg .val { fill: var(--ink); font-variant-numeric: tabular-nums; }
+.bar { fill: var(--bar); }
+.bar:hover { opacity: .8; }
+.tip { position: fixed; pointer-events: none; background: var(--raised); color: var(--ink); border: 1px solid var(--ring); border-radius: 6px; padding: 6px 8px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.15); z-index: 10; max-width: 320px; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--grid); vertical-align: top; }
+th { font-weight: 600; color: var(--ink-2); font-size: 12px; }
+td.num, th.num { text-align: right; }
+.heat td.h { text-align: center; min-width: 64px; }
+.scroll { overflow-x: auto; }
+tr.click { cursor: pointer; }
+tr.click:hover td { background: var(--raised); }
+.fail { color: var(--critical); font-weight: 600; }
+.badge { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--ring); color: var(--ink-2); }
+.pros-cons { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); }
+.pros-cons ul { margin: 4px 0 8px; padding-left: 18px; }
+.pros-cons li { margin: 2px 0; }
+.pc-good::marker { content: "+  "; color: var(--good); font-weight: 700; }
+.pc-bad::marker { content: "–  "; color: var(--critical); font-weight: 700; }
+.verdict { font-weight: 600; }
+.findings { margin: 8px 0 14px; padding-left: 20px; max-width: 1100px; }
+.findings li { margin: 4px 0; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; margin-bottom: 12px; }
+.controls label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--ink-2); }
+select, button.btn { font: inherit; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--axis); background: var(--raised); color: var(--ink); }
+button.btn { cursor: pointer; }
+.compare { display: grid; gap: 12px; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+.pane { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; min-width: 0; display: flex; flex-direction: column; max-height: 85vh; }
+.pane-head { padding: 8px 12px; border-bottom: 1px solid var(--grid); display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); }
+.pane-head b { color: var(--ink); }
+.pane-body { overflow: auto; padding: 10px 12px; }
+.pane-body.raw { white-space: pre-wrap; word-break: break-word; font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.pane-body img { width: 100%; height: auto; display: block; border-radius: 4px; }
+.pane-body.rendered table { font-size: 12px; }
+.pane-body.rendered td, .pane-body.rendered th { border: 1px solid var(--grid); }
+ins { background: var(--add); color: var(--add-ink); text-decoration: none; border-radius: 2px; }
+del { background: var(--del); color: var(--del-ink); text-decoration: none; border-radius: 2px; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); margin: 0 0 8px; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 4px; border: 1px solid var(--ring); }
+.method p, .method li { max-width: 900px; }
+@media (max-width: 1100px) { .compare { grid-template-columns: 1fr; } .pane { max-height: none; } }
+@media (max-width: 520px) { header, main { padding-left: 16px; padding-right: 16px; } .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>PDF → Markdown converter comparison</h1>
+  <p class="sub" id="subtitle"></p>
+  <nav role="tablist">
+    <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+    <button role="tab" data-tab="docs">Documents</button>
+    <button role="tab" data-tab="compare">Compare</button>
+    <button role="tab" data-tab="method">Method &amp; assessment</button>
+  </nav>
+</header>
+<main>
+<section id="tab-overview">
+  <div class="tiles" id="tiles"></div>
+  <div class="card" style="margin-bottom:16px" id="assessment-card" hidden>
+    <h2>Key findings</h2>
+    <ul class="findings" id="findings"></ul>
+  </div>
+  <div class="grid">
+    <div class="card"><h2>Total conversion time</h2><p class="note">Sum over the documents every tool converted successfully, models already loaded. Hover for failures.</p><div id="chart-total"></div></div>
+    <div class="card"><h2>Seconds per page</h2><p class="note">Median over documents of conversion time divided by page count.</p><div id="chart-page"></div></div>
+    <div class="card"><h2>Ground-truth quality (synthetic documents)</h2><p class="note">Mean over the 4 synthetic PDFs. 1.00 = perfect. Noise = share of output words that are not in the document.</p><div class="scroll" id="heat-gt"></div></div>
+    <div class="card"><h2>Where the text comes from (synthetic documents)</h2><p class="note">Share of the words of each text source found in the output. Only OCR can recover outlined, image and scanned text.</p><div class="scroll" id="heat-sources"></div></div>
+    <div class="card"><h2>Coverage of the PDF text layer (real documents)</h2><p class="note">Word recall and precision against the PDF's own text, over pages that have one. Recall below 1 means missing text; precision below 1 means extra words (OCR of images, noise, duplicates).</p><div class="scroll" id="heat-layer"></div></div>
+    <div class="card"><h2>Startup and model loading</h2><p class="note">Time before the first document can be converted (container start or model load) plus the first, cold conversion.</p><div id="chart-setup"></div></div>
+  </div>
+  <div class="card" style="margin-top:16px" id="tools-card" hidden>
+    <h2>Strengths and weaknesses per tool</h2>
+    <p class="note">Drawn from the scores above and from reading the outputs side by side in the Compare tab.</p>
+    <div class="pros-cons" id="pros-cons"></div>
+  </div>
+</section>
+
+<section id="tab-docs" hidden>
+  <div class="card">
+    <h2>Per document</h2>
+    <p class="note">Each cell: conversion time and word recall against the PDF text layer (or the ground truth for synthetic documents). Cell colour = recall. Click a row to compare outputs.</p>
+    <div class="legend" id="doc-legend"></div>
+    <div class="scroll" id="doc-table"></div>
+  </div>
+</section>
+
+<section id="tab-compare" hidden>
+  <div class="controls">
+    <label>Document <select id="c-doc"></select></label>
+    <label>Page <span style="display:flex;gap:4px"><button class="btn" id="c-prev" aria-label="Previous page">‹</button><select id="c-page"></select><button class="btn" id="c-next" aria-label="Next page">›</button></span></label>
+    <label>Left <select id="c-left"></select></label>
+    <label>Right <select id="c-right"></select></label>
+    <label>View <select id="c-view"><option value="diff">Markdown diff</option><option value="raw">Markdown</option><option value="rendered">Rendered</option></select></label>
+  </div>
+  <p class="legend" id="c-note"></p>
+  <div class="compare">
+    <div class="pane"><div class="pane-head"><b>Original page</b><span id="c-img-meta"></span></div><div class="pane-body" id="c-img"></div></div>
+    <div class="pane"><div class="pane-head"><b id="c-left-name"></b><span id="c-left-meta"></span></div><div class="pane-body raw" id="c-left-body"></div></div>
+    <div class="pane"><div class="pane-head"><b id="c-right-name"></b><span id="c-right-meta"></span></div><div class="pane-body raw" id="c-right-body"></div></div>
+  </div>
+</section>
+
+<section id="tab-method" class="method" hidden>
+  <div class="card" id="method"></div>
+</section>
+</main>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+const S = window.__summary;
+const TOOLS = S.tools;
+const LABEL = Object.fromEntries(TOOLS.map(t => [t.id, t.label]));
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt = (v, d = 1) => v == null || Number.isNaN(v) ? "–" : Number(v).toFixed(d);
+const pct = v => v == null ? "–" : Math.round(v * 100) + "%";
+const mean = a => { const b = a.filter(v => v != null && !Number.isNaN(v)); return b.length ? b.reduce((x, y) => x + y, 0) / b.length : null; };
+const median = a => { const b = a.filter(v => v != null).sort((x, y) => x - y); if (!b.length) return null; const m = b.length >> 1; return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2; };
+const RAMP = ["--s100","--s150","--s200","--s250","--s300","--s350","--s400","--s450","--s500","--s550","--s600","--s650","--s700"];
+function heat(v) {   // 0..1 -> sequential blue; returns style
+  if (v == null) return "";
+  const i = Math.max(0, Math.min(RAMP.length - 1, Math.round(v * (RAMP.length - 1))));
+  return `background: var(${RAMP[i]}); color: ${i >= 7 ? "#fff" : "#0b0b0b"};`;
+}
+
+// ---------------------------------------------------------------- tabs
+document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
+function showTab(name) {
+  document.querySelectorAll("nav button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === name));
+  document.querySelectorAll("main > section").forEach(s => s.hidden = s.id !== "tab-" + name);
+  try { localStorage.setItem("tab", name); } catch (e) {}
+}
+
+// ---------------------------------------------------------------- tooltip
+const tip = document.getElementById("tip");
+function bindTip(el, html) {
+  el.addEventListener("mousemove", e => { tip.innerHTML = html; tip.hidden = false; tip.style.left = Math.min(e.clientX + 14, innerWidth - 330) + "px"; tip.style.top = (e.clientY + 14) + "px"; });
+  el.addEventListener("mouseleave", () => tip.hidden = true);
+}
+
+// ---------------------------------------------------------------- bar chart (single measure, one hue)
+function barChart(el, rows, unit, digits = 1) {
+  const w = 560, rowH = 30, left = 210, right = 70, h = rows.length * rowH + 24;
+  const raw = Math.max(...rows.map(r => r.value ?? 0), 1e-9);
+  const step = (() => { const s = raw / 4, m = 10 ** Math.floor(Math.log10(s)); return [1, 2, 2.5, 5, 10].map(f => f * m).find(v => v >= s); })();
+  const max = step * Math.ceil(raw / step);
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`); svg.setAttribute("width", "100%"); svg.setAttribute("role", "img");
+  const ticks = Math.round(max / step);
+  for (let i = 0; i <= ticks; i++) {
+    const x = left + (w - left - right) * i / ticks;
+    svg.insertAdjacentHTML("beforeend", `<line x1="${x}" x2="${x}" y1="0" y2="${h - 18}" stroke="var(--grid)" />
+      <text x="${x}" y="${h - 4}" text-anchor="middle" font-size="11">${+(step * i).toFixed(3)}</text>`);
+  }
+  rows.forEach((r, i) => {
+    const y = i * rowH + 4, bw = r.value == null ? 0 : Math.max(2, (w - left - right) * r.value / max);
+    const g = document.createElementNS(ns, "g");
+    g.innerHTML = `<text x="${left - 8}" y="${y + 16}" text-anchor="end">${esc(r.label)}</text>
+      <rect class="bar" x="${left}" y="${y + 3}" width="${bw}" height="${rowH - 10}" rx="4" />
+      <rect x="${left}" y="${y}" width="${w - left}" height="${rowH}" fill="transparent" />
+      <text class="val" x="${left + bw + 6}" y="${y + 16}">${r.value == null ? "n/a" : fmt(r.value, digits) + " " + unit}</text>`;
+    bindTip(g, r.tip || `<b>${esc(r.label)}</b><br>${fmt(r.value, digits)} ${unit}`);
+    svg.appendChild(g);
+  });
+  el.replaceChildren(svg);
+}
+
+// ---------------------------------------------------------------- heatmap table
+function heatTable(el, columns, rows) {
+  let h = `<table class="heat"><thead><tr><th>Tool</th>${columns.map(c => `<th class="num" title="${esc(c.title || "")}">${esc(c.label)}</th>`).join("")}</tr></thead><tbody>`;
+  for (const r of rows) {
+    h += `<tr><td>${esc(r.label)}</td>` + columns.map(c => {
+      const v = r.values[c.key];
+      const shade = c.count ? null : c.invert && v != null ? 1 - v : v;
+      return `<td class="h" style="${heat(shade)}">${c.format ? c.format(v) : fmt(v, 2)}</td>`;
+    }).join("") + "</tr>";
+  }
+  el.innerHTML = h + "</tbody></table>";
+}
+
+// ---------------------------------------------------------------- overview
+function overview() {
+  const docs = S.docs, real = docs.filter(d => !d.synthetic), synth = docs.filter(d => d.synthetic);
+  const pages = docs.reduce((a, d) => a + d.pages, 0);
+  document.getElementById("subtitle").textContent =
+    `${TOOLS.length} converters on ${docs.length} documents (${pages} pages): ${real.length} real test documents and ${synth.length} synthetic PDFs with exact ground truth.`;
+  const common = docs.filter(d => TOOLS.every(t => d.tools[t.id]?.status === "ok"));
+  const tiles = [
+    [docs.length, "documents"], [pages, "pages"], [TOOLS.length, "converters"],
+    [common.length, "documents converted by every tool"],
+  ];
+  document.getElementById("tiles").innerHTML = tiles.map(([v, l]) => `<div class="tile"><div class="v">${v}</div><div class="l">${esc(l)}</div></div>`).join("");
+
+  barChart(document.getElementById("chart-total"), TOOLS.map(t => {
+    const failed = docs.filter(d => d.tools[t.id] && d.tools[t.id].status !== "ok");
+    const all = docs.filter(d => d.tools[t.id]?.status === "ok").reduce((a, d) => a + d.tools[t.id].seconds, 0);
+    return { label: t.label, value: common.reduce((a, d) => a + (d.tools[t.id]?.seconds || 0), 0),
+      tip: `<b>${esc(t.label)}</b><br>${fmt(common.reduce((a, d) => a + (d.tools[t.id]?.seconds || 0), 0))} s on the ${common.length} common documents<br>${fmt(all)} s on all ${docs.length - failed.length} documents it converted` +
+        (failed.length ? `<br><span class="fail">failed: ${failed.map(d => esc(d.name)).join(", ")}</span>` : "") };
+  }), "s");
+  barChart(document.getElementById("chart-page"), TOOLS.map(t => ({
+    label: t.label, value: median(docs.filter(d => d.tools[t.id]?.status === "ok").map(d => d.tools[t.id].seconds / d.pages)),
+  })), "s", 2);
+  barChart(document.getElementById("chart-setup"), TOOLS.map(t => {
+    const s = t.setup || {};
+    const v = (s.startup_s ?? s.model_load_s ?? 0) + (s.first_conversion_s ?? 0);
+    return { label: t.label, value: v, tip: `<b>${esc(t.label)}</b><br>start/load: ${fmt(s.startup_s ?? s.model_load_s)} s<br>first conversion: ${fmt(s.first_conversion_s)} s` };
+  }), "s");
+
+  const gtCols = [
+    { key: "body_f1", label: "Body F1", title: "Word F1 against the ground-truth markdown" },
+    { key: "headings", label: "Headings", title: "Ground-truth headings found as markdown headings" },
+    { key: "tables", label: "Tables", title: "Ground-truth table cells found in the right table row" },
+    { key: "order", label: "Order", title: "Reading-order similarity" },
+    { key: "noise", label: "Noise", title: "Share of output words not in the document (lower is better)", invert: true },
+  ];
+  heatTable(document.getElementById("heat-gt"), gtCols, TOOLS.map(t => ({
+    label: t.label, values: Object.fromEntries(gtCols.map(c => [c.key, mean(synth.map(d => d.tools[t.id]?.gt?.[c.key]))])),
+  })));
+  const srcCols = Object.entries(S.sources).map(([k, label]) => ({ key: k, label, format: pct }));
+  heatTable(document.getElementById("heat-sources"), srcCols, TOOLS.map(t => ({
+    label: t.label, values: Object.fromEntries(srcCols.map(c => [c.key, mean(synth.map(d => d.tools[t.id]?.gt?.sources?.[c.key]))])),
+  })));
+  const layerCols = [
+    { key: "recall", label: "Recall", format: pct }, { key: "precision", label: "Precision", format: pct },
+    { key: "f1", label: "F1", format: pct },
+    { key: "empty", label: "Empty pages", format: v => v == null ? "–" : String(v), title: "Pages with a text layer where the tool returned (almost) nothing", count: true },
+    { key: "failed", label: "Failed docs", format: v => String(v ?? 0), count: true },
+  ];
+  const withLayer = real.filter(d => d.text_layer_pages > 0);
+  heatTable(document.getElementById("heat-layer"), layerCols, TOOLS.map(t => {
+    const empty = withLayer.map(d => d.tools[t.id]?.empty_pages).filter(v => v != null);
+    return { label: t.label, values: {
+      recall: mean(withLayer.map(d => d.tools[t.id]?.layer?.recall)),
+      precision: mean(withLayer.map(d => d.tools[t.id]?.layer?.precision)),
+      f1: mean(withLayer.map(d => d.tools[t.id]?.layer?.f1)),
+      empty: empty.length ? empty.reduce((a, b) => a + b, 0) : null,
+      failed: real.filter(d => d.tools[t.id] && d.tools[t.id].status !== "ok").length,
+    } };
+  }));
+
+  if (S.assessment) {
+    document.getElementById("assessment-card").hidden = false;
+    document.getElementById("tools-card").hidden = false;
+    const findings = S.assessment._findings || [];
+    document.getElementById("findings").innerHTML = findings.map(f => `<li>${esc(f)}</li>`).join("");
+    document.getElementById("pros-cons").innerHTML = TOOLS.map(t => {
+      const a = S.assessment[t.id]; if (!a) return "";
+      return `<div class="card"><h3>${esc(t.label)}</h3>${a.verdict ? `<div class="verdict">${esc(a.verdict)}</div>` : ""}
+        <ul>${(a.pros || []).map(p => `<li class="pc-good">${esc(p)}</li>`).join("")}${(a.cons || []).map(p => `<li class="pc-bad">${esc(p)}</li>`).join("")}</ul></div>`;
+    }).join("");
+  }
+}
+
+// ---------------------------------------------------------------- documents table
+function docsTable() {
+  document.getElementById("doc-legend").innerHTML = [0, .25, .5, .75, 1].map(v => `<span><span class="sw" style="${heat(v)}"></span>${pct(v)}</span>`).join("") + `<span><span class="fail">failed</span></span>`;
+  let h = `<table><thead><tr><th>Document</th><th class="num">Pages</th><th class="num">Text-layer pages</th>${TOOLS.map(t => `<th class="num">${esc(t.label)}</th>`).join("")}</tr></thead><tbody>`;
+  for (const d of S.docs) {
+    h += `<tr class="click" data-doc="${esc(d.id)}"><td>${esc(d.name)} ${d.synthetic ? '<span class="badge">synthetic</span>' : ""}</td><td class="num">${d.pages}</td><td class="num">${d.text_layer_pages}</td>`;
+    for (const t of TOOLS) {
+      const e = d.tools[t.id];
+      if (!e) { h += `<td class="num">–</td>`; continue; }
+      if (e.status !== "ok") { h += `<td class="num fail" title="${esc(e.error)}">✕ failed</td>`; continue; }
+      const r = d.synthetic ? e.gt?.body_recall : e.layer?.recall;
+      h += `<td class="num" style="${heat(r)}" title="recall ${pct(r)}">${fmt(e.seconds)} s · ${pct(r)}</td>`;
+    }
+    h += "</tr>";
+  }
+  const el = document.getElementById("doc-table");
+  el.innerHTML = h + "</tbody></table>";
+  el.querySelectorAll("tr.click").forEach(tr => tr.addEventListener("click", () => { cDoc.value = tr.dataset.doc; showTab("compare"); loadDoc(); }));
+}
+
+// ---------------------------------------------------------------- compare
+const cDoc = document.getElementById("c-doc"), cPage = document.getElementById("c-page");
+const cLeft = document.getElementById("c-left"), cRight = document.getElementById("c-right"), cView = document.getElementById("c-view");
+let current = null;
+function loadScript(src) { return new Promise((ok, fail) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = fail; document.head.appendChild(s); }); }
+async function loadDoc() {
+  const id = cDoc.value;
+  window.__docData = window.__docData || {};
+  if (!window.__docData[id]) await loadScript(`data/docs/${encodeURIComponent(id)}.js`);
+  current = window.__docData[id];
+  const sources = [...TOOLS.map(t => [t.id, t.label]).filter(([k]) => current.tools[k]), ["__layer", "PDF text layer"]];
+  if (current.reference.ground_truth) sources.push(["__gt", "Ground truth"]);
+  const keep = (sel, fallback) => { const v = sel.value; sel.innerHTML = sources.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join(""); sel.value = sources.some(([k]) => k === v) ? v : fallback; };
+  keep(cLeft, current.reference.ground_truth ? "__gt" : "docling-gpu-ocr-noshape");
+  keep(cRight, "marker");
+  cPage.innerHTML = current.images.map((_, i) => `<option value="${i}">${i + 1} / ${current.images.length}</option>`).join("");
+  cPage.value = "0";
+  renderCompare();
+}
+function sourceText(key, page) {
+  if (key === "__layer") return { text: current.reference.layer_pages[page] ?? "", paged: true, name: "PDF text layer" };
+  if (key === "__gt") return { text: current.reference.ground_truth, paged: false, name: "Ground truth" };
+  const t = current.tools[key];
+  if (!t || t.status !== "ok") return { text: "", paged: true, name: LABEL[key], error: t?.error || "no output" };
+  return t.pages ? { text: t.pages[page] ?? "", paged: true, name: LABEL[key], all: t.pages.join("\n\n"), pages: t.pages }
+                 : { text: t.markdown, paged: false, name: LABEL[key] };
+}
+function renderCompare() {
+  if (!current) return;
+  const page = +cPage.value;
+  let L = sourceText(cLeft.value, page), R = sourceText(cRight.value, page);
+  let note = "";
+  const docMode = !L.paged || !R.paged;
+  if (docMode) {  // compare whole documents when either side has no page split
+    const whole = (src, key) => key === "__layer" ? current.reference.layer_pages.join("\n\n") : (src.all ?? src.text);
+    L = { ...L, text: whole(L, cLeft.value) }; R = { ...R, text: whole(R, cRight.value) };
+    const unpaged = [L, R].filter(s => !s.paged).map(s => esc(s.name));
+    note = `Whole document shown: ${unpaged.join(" and ")} ${unpaged.length > 1 ? "have" : "has"} no page split.`;
+  }
+  document.getElementById("c-img").innerHTML = `<img src="${current.images[page]}" alt="Page ${page + 1} of ${esc(current.name)}">`;
+  document.getElementById("c-img-meta").textContent = `${current.name} · page ${page + 1}`;
+  document.getElementById("c-left-name").textContent = L.name; document.getElementById("c-right-name").textContent = R.name;
+  const words = s => (s.match(/[\p{L}\p{N}]+/gu) || []).length;
+  document.getElementById("c-left-meta").textContent = L.error ? "failed" : `${words(L.text)} words`;
+  document.getElementById("c-right-meta").textContent = R.error ? "failed" : `${words(R.text)} words`;
+  const lb = document.getElementById("c-left-body"), rb = document.getElementById("c-right-body");
+  const view = cView.value;
+  lb.className = rb.className = "pane-body " + (view === "rendered" ? "rendered" : "raw");
+  if (L.error || R.error) note += ` ${L.error ? esc(L.name) + " failed: " + esc(L.error) : ""} ${R.error ? esc(R.name) + " failed: " + esc(R.error) : ""}`;
+  if (view === "rendered") {
+    lb.innerHTML = DOMPurify.sanitize(marked.parse(L.text || ""));
+    rb.innerHTML = DOMPurify.sanitize(marked.parse(R.text || ""));
+  } else if (view === "diff" && (L.text.length + R.text.length) < 400000) {
+    // Compare content, not layout: collapse space runs (table padding) and drop table rule lines
+    const norm = s => (s || "").split("\n").filter(l => !/^\s*\|?[\s:|-]*-{3,}[\s:|-]*\|?\s*$/.test(l))
+      .map(l => l.replace(/[ \t]+/g, " ").trimEnd()).join("\n").replace(/\n{3,}/g, "\n\n");
+    const parts = Diff.diffWordsWithSpace(norm(L.text), norm(R.text));
+    lb.innerHTML = parts.filter(p => !p.added).map(p => p.removed ? `<del>${esc(p.value)}</del>` : esc(p.value)).join("");
+    rb.innerHTML = parts.filter(p => !p.removed).map(p => p.added ? `<ins>${esc(p.value)}</ins>` : esc(p.value)).join("");
+    note += ` <span><span class="sw" style="background:var(--del)"></span>only left</span> <span><span class="sw" style="background:var(--add)"></span>only right</span> <span>Whitespace and table rule lines are normalised for the diff; switch to "Markdown" for the raw output.</span>`;
+  } else {
+    if (view === "diff") note += " Too large to diff in the browser; showing the plain markdown.";
+    lb.textContent = L.text; rb.textContent = R.text;
+  }
+  document.getElementById("c-note").innerHTML = note;
+}
+[cLeft, cRight, cView, cPage].forEach(el => el.addEventListener("change", renderCompare));
+cDoc.addEventListener("change", loadDoc);
+document.getElementById("c-prev").addEventListener("click", () => { if (+cPage.value > 0) { cPage.value = +cPage.value - 1; renderCompare(); } });
+document.getElementById("c-next").addEventListener("click", () => { if (+cPage.value < current.images.length - 1) { cPage.value = +cPage.value + 1; renderCompare(); } });
+
+// ---------------------------------------------------------------- method
+function method() {
+  const setups = TOOLS.map(t => `<li><b>${esc(t.label)}</b>: ${esc(JSON.stringify(t.setup))}</li>`).join("");
+  document.getElementById("method").innerHTML = `<h2>How the numbers are made</h2>
+  <ul>
+    <li><b>Timing</b>: wall time per document with models already loaded (one warm-up conversion first). docling variants are measured through the docling-serve async API (upload to result download); Jina through its hosted API (includes upload and network). All local tools ran one after another on the same RTX 4090.</li>
+    <li><b>Synthetic documents</b>: generated with exact ground truth. <i>Body F1</i> compares the words of the output with the ground-truth markdown; <i>Headings</i> checks that ground-truth headings appear as markdown headings; <i>Tables</i> checks that each ground-truth table row's cells appear together in one output table row; <i>Order</i> compares word order; <i>Noise</i> is the share of output words that appear nowhere in the document. The text-source table tags every snippet by how it is stored in the PDF (real text, vector outlines, embedded image, scan).</li>
+    <li><b>Real documents</b>: there is no ground truth, so outputs are compared with the PDF's own text layer (pypdfium2) on pages that have one. This rewards complete text, not structure: tools that dump the PDF text as is (Jina, markitdown) score high here even when tables and headings are lost. Page headers/footers count as reference text although docling deliberately leaves them out, and some PDFs carry hidden duplicate text (CELEX stamps every page up to three times), which lowers every tool's recall.</li>
+    <li><b>Compare tab</b>: word-level diff of two outputs. Tools without a page split (markitdown, Jina) are compared on the whole document.</li>
+  </ul>
+  <h3>Tool settings</h3><ul>${setups}</ul>`;
+}
+
+// ---------------------------------------------------------------- init
+overview(); docsTable(); method();
+cDoc.innerHTML = S.docs.map(d => `<option value="${esc(d.id)}">${esc(d.name)} (${d.pages} p.)</option>`).join("");
+loadDoc();
+try { const t = localStorage.getItem("tab"); if (t) showTab(t); } catch (e) {}
+</script>
+</body>
+</html>

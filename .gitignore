@@ -16,3 +16,4 @@ build/
 .env
 .hf-cache
 benchmarks/results/
+benchmarks/tool_comparison/results/

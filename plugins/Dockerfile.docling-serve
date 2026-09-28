@@ -24,3 +24,9 @@ COPY mute_health_logs.py /tmp/mute_health_logs.py
 RUN SP="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
     && cp /tmp/mute_health_logs.py "$SP/dcc_mute_health_logs.py" \
     && printf 'import dcc_mute_health_logs\n' > "$SP/zz_dcc_mute_health_logs.pth"
+
+# Vector shapes no longer send programmatic PDF text to OCR (DCC_OCR_IGNORE_SHAPES=0 restores docling's behaviour)
+COPY ocr_ignore_shapes.py /tmp/ocr_ignore_shapes.py
+RUN SP="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
+    && cp /tmp/ocr_ignore_shapes.py "$SP/dcc_ocr_ignore_shapes.py" \
+    && printf 'import dcc_ocr_ignore_shapes\n' > "$SP/zz_dcc_ocr_ignore_shapes.pth"
