@@ -7,9 +7,13 @@ on:
   workflow_dispatch:
     inputs:
       docling_serve_tag:
-        description: "Upstream docling-serve release tag, tested per the README upgrade checklist (e.g. v1.35.0)"
+        description: "Upstream docling-serve tag to build on, tested per the README upgrade checklist (e.g. v1.35.0, or main)"
         required: true
         default: "v1.35.0"
+      image_tag:
+        description: "Tag to publish our images under (besides latest). Empty: same as the upstream tag"
+        required: false
+        default: ""
 
 env:
   REGISTRY: ghcr.io
@@ -60,9 +64,26 @@ jobs:
       - name: Lowercase image name
         run: echo "IMAGE_NAME=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
 
-      - name: Determine tag
+      - name: Determine tags
         id: tag
-        run: echo "value=${{ inputs.docling_serve_tag }}" >> "$GITHUB_OUTPUT"
+        env:
+          UPSTREAM_TAG: ${{ inputs.docling_serve_tag }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          echo "upstream=$UPSTREAM_TAG" >> "$GITHUB_OUTPUT"
+          echo "image=${IMAGE_TAG:-$UPSTREAM_TAG}" >> "$GITHUB_OUTPUT"
+
+      # Pin the upstream image by digest: tags like `main` move, the digest records exactly
+      # what this build is based on (image label + run summary).
+      - name: Resolve upstream image
+        id: upstream
+        env:
+          UPSTREAM_REF: ${{ matrix.variant.upstream_image }}:${{ steps.tag.outputs.upstream }}
+        run: |
+          digest="$(docker buildx imagetools inspect "$UPSTREAM_REF" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          test -n "$digest"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "- \`$UPSTREAM_REF\` → \`$digest\` published as \`${{ steps.tag.outputs.image }}\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build and push
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
@@ -71,11 +92,15 @@ jobs:
           file: plugins/Dockerfile.docling-serve
           build-args: |
             DOCLING_SERVE_IMAGE=${{ matrix.variant.upstream_image }}
-            DOCLING_SERVE_TAG=${{ steps.tag.outputs.value }}
+            DOCLING_SERVE_TAG=${{ steps.tag.outputs.upstream }}@${{ steps.upstream.outputs.digest }}
           platforms: ${{ matrix.variant.platforms }}
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}${{ matrix.variant.suffix }}:${{ steps.tag.outputs.value }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}${{ matrix.variant.suffix }}:${{ steps.tag.outputs.image }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}${{ matrix.variant.suffix }}:latest
+          labels: |
+            org.opencontainers.image.base.name=${{ matrix.variant.upstream_image }}:${{ steps.tag.outputs.upstream }}
+            org.opencontainers.image.base.digest=${{ steps.upstream.outputs.digest }}
+            org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.variant.cache_scope }}
           cache-to: type=gha,mode=max,scope=${{ matrix.variant.cache_scope }}

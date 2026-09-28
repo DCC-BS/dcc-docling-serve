@@ -509,9 +509,23 @@ Runs on push/PR: lint with ruff.
 Builds and pushes the patched docling-serve images (default, `-cpu`, `-cu128`, `-cu130`)
 to GHCR. It runs **only when dispatched manually** (Actions → *Build docling-serve with
 layout and OCR plugins* → Run workflow); pushing to `main` never publishes an image.
-The `docling_serve_tag` input (default `v1.35.0`) is the upstream release every variant
-is built from; the images are tagged with it and with `:latest`. Do not use upstream's
-`latest` or `main` tags: they track unreleased upstream code.
+Inputs:
+
+- `docling_serve_tag` (default `v1.35.0`): the upstream tag every variant is built from.
+  Prefer release tags; upstream's `main` (and `latest`) track unreleased code and move
+  with every merge.
+- `image_tag` (optional): the tag our images are published under, besides `:latest`.
+  Empty means the same as `docling_serve_tag`. Example: build on upstream `main` but
+  publish as `v1.35.0`.
+
+The upstream tag is resolved to its digest at the start of the run and the build uses
+that digest, so a moving tag cannot change between variants. The digest is shown in the
+run summary and stored in the image labels:
+
+```bash
+docker inspect ghcr.io/dcc-bs/dcc-docling-serve:v1.35.0 \
+  --format '{{ index .Config.Labels "org.opencontainers.image.base.name" }} {{ index .Config.Labels "org.opencontainers.image.base.digest" }}'
+```
 
 ## License
 
