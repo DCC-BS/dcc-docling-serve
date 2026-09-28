@@ -9,10 +9,10 @@ image that bundles two community plugins:
 
 | Image | Based on | Architectures | Notes |
 | --- | --- | --- | --- |
-| `ghcr.io/dcc-bs/dcc-docling-serve` | `docling-serve` | linux/amd64, linux/arm64 | Base image, packages from PyPI |
+| `ghcr.io/dcc-bs/dcc-docling-serve` | `docling-serve` | linux/amd64 | Base image, packages from PyPI (torch with CUDA 13) |
 | `ghcr.io/dcc-bs/dcc-docling-serve-cpu` | `docling-serve-cpu` | linux/amd64, linux/arm64 | CPU-only, torch from PyTorch CPU index |
 | `ghcr.io/dcc-bs/dcc-docling-serve-cu128` | `docling-serve-cu128` | linux/amd64 | CUDA 12.8, torch from cu128 index |
-| `ghcr.io/dcc-bs/dcc-docling-serve-cu130` | `docling-serve-cu130` | linux/amd64, linux/arm64 | CUDA 13.0, torch from cu130 index |
+| `ghcr.io/dcc-bs/dcc-docling-serve-cu130` | `docling-serve-cu130` | linux/amd64 | CUDA 13.0, torch from cu130 index |
 
 Each image is tagged with the upstream docling-serve version (e.g. `v2.3.0`) and `:latest`.
 
@@ -112,7 +112,7 @@ ghcr.io/dcc-bs/dcc-docling-serve:latest
 
 | Service | Image |
 | --- | --- |
-| **vllm-glm-ocr** | `ghcr.io/dcc-bs/vllm:v0.16.0-cu130` |
+| **vllm-glm-ocr** | `vllm/vllm-openai:v0.29.0` |
 | **docling-serve** | `ghcr.io/dcc-bs/dcc-docling-serve:latest` |
 
 Environment variables are documented in `.env.example`.
@@ -130,14 +130,14 @@ To build the patched docling-serve image from source:
 make docker-build
 ```
 
-This runs `docker build` against `plugins/Dockerfile.docling-serve` and tags the
-result as `docling-serve-plugins:latest`.
+This runs `docker build` against `plugins/Dockerfile.docling-serve` (default upstream
+image, `latest` tag) and tags the result as `$DOCLING_IMAGE`
+(default `ghcr.io/dcc-bs/dcc-docling-serve:latest`).
 
 #### Running the locally built image
 
-To test the local image without pushing it to GHCR, use the compose stack but
-override the image name via `DOCLING_SERVE_TAG` and a matching tag alias, or run
-`docling-serve` directly with `docker run`:
+To test the local image without pushing it to GHCR, run `docling-serve` directly
+with `docker run`:
 
 ```bash
 docker run --add-host=host.docker.internal:host-gateway --rm \
@@ -147,17 +147,16 @@ docker run --add-host=host.docker.internal:host-gateway --rm \
   -e DOCLING_SERVE_ENABLE_REMOTE_SERVICES=true \
   -e DOCLING_SERVE_ALLOW_EXTERNAL_PLUGINS=true \
   -e GLMOCR_REMOTE_OCR_API_URL=http://host.docker.internal:8001/v1/chat/completions \
-  docling-serve-plugins:latest
+  ghcr.io/dcc-bs/dcc-docling-serve:latest
 ```
 
 The Gradio UI is then available at http://localhost:5001.
 
-Alternatively, re-tag the local image to match the compose service name and use
-the normal `make docker-up` flow:
+Because `make docker-build` tags the image with the name `compose.yaml` uses, the
+normal compose flow picks up the local build:
 
 ```bash
 make docker-build
-docker tag docling-serve-plugins:latest ghcr.io/dcc-bs/dcc-docling-serve:latest
 make docker-up
 ```
 
@@ -220,6 +219,51 @@ every image whose torch has CUDA support. CPU images are left unchanged.
 
 No request option is needed. docling already enables CUDA for RapidOCR when the
 accelerator device is CUDA, which it is by default when a GPU is visible.
+
+## OCR: vector shapes no longer trigger OCR
+
+**Problem.** Since docling 2.121 the default OCR mode (`pdf_aware_layout_regions`) sends a
+layout region to OCR when it overlaps a bitmap *or a vector shape*, even if the region
+already has PDF text. Table rules, underlines and background fills are shapes, so on
+born-digital documents almost every region is OCR'd. A financial statement with a
+full-page background, for example, is OCR'd completely although all 172 text cells are
+real text. docling then keeps the PDF text wherever both exist, so this OCR is thrown
+away. There is no request option to change it.
+
+**Evidence** (docling-serve 1.35.0, RTX 4090, 27 test documents / 976 pages, see
+[Converter comparison](#converter-comparison)):
+
+| | OCR rule as upstream | Shapes ignored |
+|---|---:|---:|
+| Conversion time, all documents | 522 s | 165 s |
+| CELEX regulation, 603 pages | 367 s | 88 s |
+| Markdown identical to upstream | – | 22 of 27 documents, rest ≥ 97.7 % similar |
+| Ground-truth scores (synthetic PDFs) | same | same |
+
+The remaining differences come from OCR on logos and drawings (for example a
+stray letter read from a vector logo). All 77 tables were identical.
+
+**What the patch changes.** `plugins/ocr_ignore_shapes.py` is installed into
+site-packages as `dcc_ocr_ignore_shapes.py` with a `.pth` file, like the health-log
+muting. When docling imports `docling.models.base_ocr_model`, it wraps
+`BaseOcrModel._find_pdf_aware_layout_ocr_rects` so that, for that call only, the page
+backend reports no vector shapes. Everything else stays as upstream:
+
+- Regions that overlap a bitmap (scans, photos, screenshots) are still OCR'd.
+- Regions without PDF text (text drawn as outlines, image-only pages) are still OCR'd.
+- `force_ocr` and the other OCR modes are not affected.
+
+**What can be lost.** Text drawn as vector paths inside a region that also contains
+real PDF text (for example an outlined word next to normal text in the same paragraph)
+is no longer OCR'd. None of the 27 test documents contained meaningful text of this
+kind.
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `DCC_OCR_IGNORE_SHAPES` | Set to `0`/`false`/`no` to restore docling's behaviour | `1` |
+
+If the wrapped docling method is missing (renamed upstream), the patch logs a warning
+and does nothing; conversions keep working at the old speed.
 
 ## Health-probe log muting
 
@@ -365,18 +409,103 @@ uv run --script benchmarks/e2e_timing.py --docs ../test-docs
 uv run --script benchmarks/e2e_timing.py --docs ../test-docs --variants official-cu130 custom-cu130 --repeats 1
 ```
 
+## Converter comparison
+
+`benchmarks/tool_comparison/` compares docling (upstream, with GPU OCR, and with GPU
+OCR plus the shape patch) with marker, docTR, markitdown and Jina Reader on the test
+documents plus four synthetic PDFs with exact ground truth (charts, tables and forms,
+a scanned page, a designed page). It measures conversion time per document and page,
+scores the markdown against the ground truth and the PDF text layer, and builds an
+HTML dashboard with side-by-side diffs next to the original page.
+
+```bash
+benchmarks/tool_comparison/run_all.sh          # needs Docker, a GPU and jina_key in ../.env
+python3 -m http.server -d benchmarks/tool_comparison/results/dashboard 8765
+```
+
+Note that the Jina runner uploads every document to r.jina.ai.
+
+## Upgrading docling-serve
+
+Our image patches upstream in four places. Check each one before publishing an image
+built on a new docling-serve version (replace `v1.36.0` with the new tag).
+
+1. **Gradio UI** (`plugins/gradio_ui.py` replaces upstream's file). Diff upstream's UI
+   between the old and the new version and port the changes. Also check that every
+   request field the UI sends still exists (in 1.33 upstream renamed `ocr` to `do_ocr`;
+   the old field was silently ignored):
+
+   ```bash
+   git -C ../docling-serve diff v1.35.0 v1.36.0 -- docling_serve/gradio_ui.py
+   docker run --rm --entrypoint python ghcr.io/docling-project/docling-serve-cpu:v1.36.0 -c \
+     "from docling_serve.datamodel.convert import ConvertDocumentsRequestOptions as O; print(sorted(O.model_fields))"
+   ```
+
+2. **Build the images locally** (CU130 and CPU at least). The build itself fails if
+   onnxruntime-gpu has no CUDA provider or its libraries do not resolve:
+
+   ```bash
+   docker build --build-arg DOCLING_SERVE_IMAGE=ghcr.io/docling-project/docling-serve-cu130 \
+     --build-arg DOCLING_SERVE_TAG=v1.36.0 -t dcc-docling-serve-test:cu130 \
+     -f plugins/Dockerfile.docling-serve plugins/
+   ```
+
+3. **GPU OCR at runtime.** The RapidOCR session must list `CUDAExecutionProvider` first:
+
+   ```bash
+   docker run --rm --gpus device=0 --entrypoint python dcc-docling-serve-test:cu130 -c "
+   import glob, onnxruntime as ort
+   model = sorted(glob.glob('/opt/app-root/src/.cache/docling/models/RapidOcr/*det*.onnx'))[0]
+   print(ort.InferenceSession(model, providers=['CUDAExecutionProvider', 'CPUExecutionProvider']).get_providers())"
+   ```
+
+4. **Shape patch.** First check whether it is still needed: if upstream no longer
+   passes `shapes=True` in `base_ocr_model.py`, or added an option for it, remove
+   `plugins/ocr_ignore_shapes.py` and its Dockerfile lines. Otherwise check that it
+   still applies (`True`):
+
+   ```bash
+   docker run --rm --entrypoint sh dcc-docling-serve-test:cu130 -c \
+     "grep -n 'shapes=True' \$(python -c 'import docling.models.base_ocr_model as m; print(m.__file__)')"
+   docker run --rm --entrypoint python dcc-docling-serve-test:cu130 -c \
+     "import docling.models.base_ocr_model as m; print(getattr(m.BaseOcrModel._find_pdf_aware_layout_ocr_rects, '_dcc_ignores_shapes', False))"
+   ```
+
+5. **Output unchanged, speed kept.** Run docling with and without the patch over the
+   test documents and compare; the script exits non-zero if any document is less than
+   97 % similar. Then compare timings against the previous release:
+
+   ```bash
+   cd benchmarks/tool_comparison
+   uv run --script run_docling.py --tool docling-gpu-ocr --image dcc-docling-serve-test:cu130 --env DCC_OCR_IGNORE_SHAPES=0 --force
+   uv run --script run_docling.py --tool docling-gpu-ocr-noshape --image dcc-docling-serve-test:cu130 --env DCC_OCR_IGNORE_SHAPES=1 --force
+   python3 compare_outputs.py docling-gpu-ocr docling-gpu-ocr-noshape
+   cd ../.. && uv run --script benchmarks/e2e_timing.py --docs ../test-docs --tag v1.36.0 --variants official-cu130 custom-cu130 \
+     --image custom-cu130=dcc-docling-serve-test:cu130
+   ```
+
+6. **Plugins.** Run the e2e tests against the stack (GLM-OCR via vLLM, PP-DocLayout-V3)
+   and convert a document in the Gradio UI with both plugins selected.
+
+7. **Publish.** Push, then run the *Build docling-serve* workflow manually with
+   `docling_serve_tag=v1.36.0`. A plain push builds the CU128/CU130 variants from
+   upstream's `main` tag, which is not the version you tested.
+
 ## CI/CD
 
 ### CI (`.github/workflows/ci.yml`)
 
 Runs on push/PR: lint with ruff.
 
-### Docker image (`.github/workflows/docling-serve.yml`)
+### Docker image (`.github/workflows/cd.yml`)
 
-Builds and pushes the patched docling-serve image to GHCR. Triggered on:
+Builds and pushes the patched docling-serve images (default, `-cpu`, `-cu128`, `-cu130`)
+to GHCR. Triggered on:
 
-- Push to `main` when files in `plugins/` change
-- Manual dispatch (with configurable upstream tag)
+- Push to `main` when files in `plugins/` change. The default and CPU variants build
+  from upstream's `latest` tag, CU128 and CU130 from upstream's `main` tag.
+- Manual dispatch with an upstream tag (e.g. `v1.35.0`), which builds every variant
+  from that tag and also tags the images with it.
 
 ## License
 
