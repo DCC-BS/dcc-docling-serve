@@ -336,6 +336,19 @@ make test
 
 Tests are skipped automatically when `DOCLING_SERVE_URL` is not set.
 
+## Processing-time benchmark
+
+`benchmarks/e2e_timing.py` compares end-to-end conversion time of the official and
+our docling-serve images (CU130 and CPU) and plain docling installed from PyPI. The
+variants run one after another. Each one gets a cold conversion to load its models,
+then converts every document `--repeats` times with the options in `OPTIONS`.
+Results (raw JSONL plus `summary.md` with per-stage timings) go to `benchmarks/results/`.
+
+```bash
+uv run --script benchmarks/e2e_timing.py --docs ../test-docs
+uv run --script benchmarks/e2e_timing.py --docs ../test-docs --variants official-cu130 custom-cu130 --repeats 1
+```
+
 ## CI/CD
 
 ### CI (`.github/workflows/ci.yml`)
