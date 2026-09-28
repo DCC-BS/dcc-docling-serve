@@ -5,6 +5,7 @@ import inspect
 import itertools
 import json
 import logging
+import shlex
 import ssl
 import sys
 import tempfile
@@ -411,6 +412,49 @@ def wait_task_finish(auth: str, task_id: str, return_as_file: bool):
     )
 
 
+def build_options(
+    to_formats,
+    image_export_mode,
+    include_page_images,
+    pipeline,
+    layout_engine,
+    ocr,
+    force_ocr,
+    ocr_engine,
+    ocr_lang,
+    pdf_backend,
+    table_mode,
+    heading_hierarchy,
+    abort_on_error,
+    do_code_enrichment,
+    do_formula_enrichment,
+    do_picture_classification,
+    do_picture_description,
+) -> dict:
+    """Conversion options sent by the UI, shared by the request and its curl."""
+    options = {
+        "to_formats": to_formats,
+        "image_export_mode": image_export_mode,
+        "include_page_images": include_page_images,
+        "pipeline": pipeline,
+        "do_ocr": ocr,
+        "force_ocr": force_ocr,
+        "ocr_preset": ocr_engine,
+        "ocr_lang": _to_list_of_strings(ocr_lang),
+        "pdf_backend": pdf_backend,
+        "table_mode": table_mode,
+        "do_pdf_heading_hierarchy": heading_hierarchy,
+        "abort_on_error": abort_on_error,
+        "do_code_enrichment": do_code_enrichment,
+        "do_formula_enrichment": do_formula_enrichment,
+        "do_picture_classification": do_picture_classification,
+        "do_picture_description": do_picture_description,
+    }
+    if layout_engine != "default":
+        options["layout_custom_config"] = {"kind": layout_engine}
+    return options
+
+
 def process_url(
     auth,
     input_sources,
@@ -438,29 +482,27 @@ def process_url(
         "sources": [
             {"kind": "http", "url": source} for source in input_sources.split(",")
         ],
-        "options": {
-            "to_formats": to_formats,
-            "image_export_mode": image_export_mode,
-            "include_page_images": include_page_images,
-            "pipeline": pipeline,
-            "do_ocr": ocr,
-            "force_ocr": force_ocr,
-            "ocr_preset": ocr_engine,
-            "ocr_lang": _to_list_of_strings(ocr_lang),
-            "pdf_backend": pdf_backend,
-            "table_mode": table_mode,
-            "do_pdf_heading_hierarchy": heading_hierarchy,
-            "abort_on_error": abort_on_error,
-            "do_code_enrichment": do_code_enrichment,
-            "do_formula_enrichment": do_formula_enrichment,
-            "do_picture_classification": do_picture_classification,
-            "do_picture_description": do_picture_description,
-        },
+        "options": build_options(
+            to_formats,
+            image_export_mode,
+            include_page_images,
+            pipeline,
+            layout_engine,
+            ocr,
+            force_ocr,
+            ocr_engine,
+            ocr_lang,
+            pdf_backend,
+            table_mode,
+            heading_hierarchy,
+            abort_on_error,
+            do_code_enrichment,
+            do_formula_enrichment,
+            do_picture_classification,
+            do_picture_description,
+        ),
         "target": target,
     }
-
-    if layout_engine != "default":
-        parameters["options"]["layout_custom_config"] = {"kind": layout_engine}
 
     if (
         not parameters["sources"]
@@ -535,30 +577,27 @@ def process_file(
 
     parameters = {
         "sources": files_data,
-        "options": {
-            "to_formats": to_formats,
-            "image_export_mode": image_export_mode,
-            "include_page_images": include_page_images,
-            "pipeline": pipeline,
-            "do_ocr": ocr,
-            "force_ocr": force_ocr,
-            "ocr_preset": ocr_engine,
-            "ocr_lang": _to_list_of_strings(ocr_lang),
-            "pdf_backend": pdf_backend,
-            "table_mode": table_mode,
-            "do_pdf_heading_hierarchy": heading_hierarchy,
-            "abort_on_error": abort_on_error,
-            "return_as_file": return_as_file,
-            "do_code_enrichment": do_code_enrichment,
-            "do_formula_enrichment": do_formula_enrichment,
-            "do_picture_classification": do_picture_classification,
-            "do_picture_description": do_picture_description,
-        },
+        "options": build_options(
+            to_formats,
+            image_export_mode,
+            include_page_images,
+            pipeline,
+            layout_engine,
+            ocr,
+            force_ocr,
+            ocr_engine,
+            ocr_lang,
+            pdf_backend,
+            table_mode,
+            heading_hierarchy,
+            abort_on_error,
+            do_code_enrichment,
+            do_formula_enrichment,
+            do_picture_classification,
+            do_picture_description,
+        ),
         "target": target,
     }
-
-    if layout_engine != "default":
-        parameters["options"]["layout_custom_config"] = {"kind": layout_engine}
 
     headers = {}
     if docling_serve_settings.api_key:
@@ -584,6 +623,164 @@ def process_file(
 
     task_id_rendered = response.json()["task_id"]
     return task_id_rendered
+
+
+#############################
+# Request as curl           #
+#############################
+
+
+def public_base_url(request: Optional[gr.Request]) -> str:
+    """Base URL of the API as the browser reaches it, falling back to the internal one."""
+    headers = getattr(request, "headers", None) if request else None
+    host = headers and (headers.get("x-forwarded-host") or headers.get("host"))
+    if not host:
+        return get_api_endpoint()
+    url = getattr(request, "url", None)
+    scheme = headers.get("x-forwarded-proto") or getattr(url, "scheme", None) or "http"
+    return f"{scheme}://{host}{uvicorn_settings.root_path or ''}"
+
+
+def _form_value(value) -> Optional[str]:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, dict):
+        return json.dumps(value)
+    return None if value is None else str(value)
+
+
+def _curl_command(url: str, args: list[str]) -> str:
+    header = (
+        "# Synchronous equivalent of the request sent by the UI\n"
+        "# (the UI itself uses /v1/convert/source/async and polls the result).\n"
+    )
+    lines = [f"curl -X POST {shlex.quote(url)}"]
+    if docling_serve_settings.api_key:
+        # Never render the real key into the page.
+        lines.append('-H "X-Api-Key: $DOCLING_SERVE_API_KEY"')
+    lines.extend(args)
+    return header + " \\\n  ".join(lines)
+
+
+def build_url_curl(
+    auth,
+    input_sources,
+    to_formats,
+    image_export_mode,
+    include_page_images,
+    pipeline,
+    layout_engine,
+    ocr,
+    force_ocr,
+    ocr_engine,
+    ocr_lang,
+    pdf_backend,
+    table_mode,
+    heading_hierarchy,
+    abort_on_error,
+    return_as_file,
+    do_code_enrichment,
+    do_formula_enrichment,
+    do_picture_classification,
+    do_picture_description,
+    request: gr.Request,
+):
+    options = build_options(
+        to_formats,
+        image_export_mode,
+        include_page_images,
+        pipeline,
+        layout_engine,
+        ocr,
+        force_ocr,
+        ocr_engine,
+        ocr_lang,
+        pdf_backend,
+        table_mode,
+        heading_hierarchy,
+        abort_on_error,
+        do_code_enrichment,
+        do_formula_enrichment,
+        do_picture_classification,
+        do_picture_description,
+    )
+    body = {
+        "sources": [
+            {"kind": "http", "url": source.strip()}
+            for source in (input_sources or "").split(",")
+        ],
+        "options": options,
+        "target": {"kind": "zip" if return_as_file else "inbody"},
+    }
+    args = [
+        "-H 'Content-Type: application/json'",
+        "-d " + shlex.quote(json.dumps(body, indent=2)),
+    ]
+    if return_as_file:
+        args.append("-o result.zip")
+    curl = _curl_command(f"{public_base_url(request)}/v1/convert/source", args)
+    return curl, gr.Accordion(visible=True)
+
+
+def build_file_curl(
+    auth,
+    files,
+    to_formats,
+    image_export_mode,
+    include_page_images,
+    pipeline,
+    layout_engine,
+    ocr,
+    force_ocr,
+    ocr_engine,
+    ocr_lang,
+    pdf_backend,
+    table_mode,
+    heading_hierarchy,
+    abort_on_error,
+    return_as_file,
+    do_code_enrichment,
+    do_formula_enrichment,
+    do_picture_classification,
+    do_picture_description,
+    request: gr.Request,
+):
+    options = build_options(
+        to_formats,
+        image_export_mode,
+        include_page_images,
+        pipeline,
+        layout_engine,
+        ocr,
+        force_ocr,
+        ocr_engine,
+        ocr_lang,
+        pdf_backend,
+        table_mode,
+        heading_hierarchy,
+        abort_on_error,
+        do_code_enrichment,
+        do_formula_enrichment,
+        do_picture_classification,
+        do_picture_description,
+    )
+    args = [
+        "-F " + shlex.quote(f"files=@{Path(getattr(file, 'name', file)).name}")
+        for file in files or []
+    ]
+    for key, value in options.items():
+        for item in value if isinstance(value, list) else [value]:
+            form_value = _form_value(item)
+            if form_value is not None:
+                args.append("-F " + shlex.quote(f"{key}={form_value}"))
+    if return_as_file:
+        args.extend(["-F target_type=zip", "-o result.zip"])
+    curl = _curl_command(f"{public_base_url(request)}/v1/convert/file", args)
+    return curl, gr.Accordion(visible=True)
+
+
+def hide_curl():
+    return gr.Accordion(visible=False, open=False)
 
 
 #############################
@@ -1021,6 +1218,10 @@ with gr.Blocks(
     with gr.Row(visible=False) as task_id_output:
         task_id_rendered = gr.Textbox(label="Task id", interactive=False)
 
+    # Request as curl
+    with gr.Accordion("Request as curl", open=False, visible=False) as curl_output:
+        curl_code = gr.Code(language="shell", wrap_lines=True, show_label=False)
+
     # Document output
     with gr.Row(visible=False) as content_output:
         with gr.Tab("Docling (JSON)"):
@@ -1068,6 +1269,29 @@ with gr.Blocks(
     )
 
     # URL processing
+    process_url_inputs = [
+        auth,
+        url_input,
+        to_formats,
+        image_export_mode,
+        include_page_images,
+        pipeline,
+        layout_engine,
+        ocr,
+        force_ocr,
+        ocr_engine,
+        ocr_lang,
+        pdf_backend,
+        table_mode,
+        heading_hierarchy,
+        abort_on_error,
+        return_as_file,
+        do_code_enrichment,
+        do_formula_enrichment,
+        do_picture_classification,
+        do_picture_description,
+    ]
+
     url_process_btn.click(
         set_options_visibility, inputs=[false_bool], outputs=[options]
     ).then(
@@ -1091,29 +1315,12 @@ with gr.Blocks(
         inputs=[true_bool],
         outputs=[task_id_output],
     ).then(
+        build_url_curl,
+        inputs=process_url_inputs,
+        outputs=[curl_code, curl_output],
+    ).then(
         process_url,
-        inputs=[
-            auth,
-            url_input,
-            to_formats,
-            image_export_mode,
-            include_page_images,
-            pipeline,
-            layout_engine,
-            ocr,
-            force_ocr,
-            ocr_engine,
-            ocr_lang,
-            pdf_backend,
-            table_mode,
-            heading_hierarchy,
-            abort_on_error,
-            return_as_file,
-            do_code_enrichment,
-            do_formula_enrichment,
-            do_picture_classification,
-            do_picture_description,
-        ],
+        inputs=process_url_inputs,
         outputs=[
             task_id_rendered,
         ],
@@ -1156,9 +1363,32 @@ with gr.Blocks(
         outputs=[content_output, file_output],
     ).then(set_task_id_visibility, inputs=[false_bool], outputs=[task_id_output]).then(
         clear_url_input, inputs=None, outputs=[url_input]
-    )
+    ).then(hide_curl, inputs=None, outputs=[curl_output])
 
     # File processing
+    process_file_inputs = [
+        auth,
+        file_input,
+        to_formats,
+        image_export_mode,
+        include_page_images,
+        pipeline,
+        layout_engine,
+        ocr,
+        force_ocr,
+        ocr_engine,
+        ocr_lang,
+        pdf_backend,
+        table_mode,
+        heading_hierarchy,
+        abort_on_error,
+        return_as_file,
+        do_code_enrichment,
+        do_formula_enrichment,
+        do_picture_classification,
+        do_picture_description,
+    ]
+
     file_process_btn.click(
         set_options_visibility, inputs=[false_bool], outputs=[options]
     ).then(
@@ -1182,29 +1412,12 @@ with gr.Blocks(
         inputs=[true_bool],
         outputs=[task_id_output],
     ).then(
+        build_file_curl,
+        inputs=process_file_inputs,
+        outputs=[curl_code, curl_output],
+    ).then(
         process_file,
-        inputs=[
-            auth,
-            file_input,
-            to_formats,
-            image_export_mode,
-            include_page_images,
-            pipeline,
-            layout_engine,
-            ocr,
-            force_ocr,
-            ocr_engine,
-            ocr_lang,
-            pdf_backend,
-            table_mode,
-            heading_hierarchy,
-            abort_on_error,
-            return_as_file,
-            do_code_enrichment,
-            do_formula_enrichment,
-            do_picture_classification,
-            do_picture_description,
-        ],
+        inputs=process_file_inputs,
         outputs=[
             task_id_rendered,
         ],
@@ -1247,7 +1460,7 @@ with gr.Blocks(
         outputs=[content_output, file_output],
     ).then(set_task_id_visibility, inputs=[false_bool], outputs=[task_id_output]).then(
         clear_file_input, inputs=None, outputs=[file_input]
-    )
+    ).then(hide_curl, inputs=None, outputs=[curl_output])
 
 
 ####################################
