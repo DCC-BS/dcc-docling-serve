@@ -433,7 +433,11 @@ built on a new docling-serve version (replace `v1.36.0` with the new tag).
 1. **Gradio UI** (`plugins/gradio_ui.py` replaces upstream's file). Diff upstream's UI
    between the old and the new version and port the changes. Also check that every
    request field the UI sends still exists (in 1.33 upstream renamed `ocr` to `do_ocr`;
-   the old field was silently ignored):
+   the old field was silently ignored). Upstream `main` has replaced the Gradio UI with a
+   bundled web UI (docling-serve#714, not released as of 1.35.0); the first release that
+   contains it needs a decision to port our additions (bounding-box view, curl panel,
+   PP-DocLayout-V3 choice) or drop `gradio_ui.py`. The image build fails on purpose while
+   upstream no longer mounts `gradio_ui.py`.
 
    ```bash
    git -C ../docling-serve diff v1.35.0 v1.36.0 -- docling_serve/gradio_ui.py
@@ -487,9 +491,9 @@ built on a new docling-serve version (replace `v1.36.0` with the new tag).
 6. **Plugins.** Run the e2e tests against the stack (GLM-OCR via vLLM, PP-DocLayout-V3)
    and convert a document in the Gradio UI with both plugins selected.
 
-7. **Publish.** Push, then run the *Build docling-serve* workflow manually with
-   `docling_serve_tag=v1.36.0`. A plain push builds the CU128/CU130 variants from
-   upstream's `main` tag, which is not the version you tested.
+7. **Publish.** Push, then run the *Build docling-serve with layout and OCR plugins*
+   workflow manually with `docling_serve_tag=v1.36.0`, and update the input's default in
+   `.github/workflows/cd.yml`.
 
 ## CI/CD
 
@@ -500,12 +504,11 @@ Runs on push/PR: lint with ruff.
 ### Docker image (`.github/workflows/cd.yml`)
 
 Builds and pushes the patched docling-serve images (default, `-cpu`, `-cu128`, `-cu130`)
-to GHCR. Triggered on:
-
-- Push to `main` when files in `plugins/` change. The default and CPU variants build
-  from upstream's `latest` tag, CU128 and CU130 from upstream's `main` tag.
-- Manual dispatch with an upstream tag (e.g. `v1.35.0`), which builds every variant
-  from that tag and also tags the images with it.
+to GHCR. It runs **only when dispatched manually** (Actions → *Build docling-serve with
+layout and OCR plugins* → Run workflow); pushing to `main` never publishes an image.
+The `docling_serve_tag` input (default `v1.35.0`) is the upstream release every variant
+is built from; the images are tagged with it and with `:latest`. Do not use upstream's
+`latest` or `main` tags: they track unreleased upstream code.
 
 ## License
 

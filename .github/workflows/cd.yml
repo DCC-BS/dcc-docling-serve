@@ -1,16 +1,15 @@
 name: Build docling-serve with layout and OCR plugins
 
+# Images are published only when this workflow is dispatched manually, with the
+# upstream docling-serve release to build on. Follow "Upgrading docling-serve" in the
+# README before dispatching a new version.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "plugins/**"
   workflow_dispatch:
     inputs:
       docling_serve_tag:
-        description: "Upstream docling-serve image tag (e.g. latest, v2.3.0)"
+        description: "Upstream docling-serve release tag, tested per the README upgrade checklist (e.g. v1.35.0)"
         required: true
-        default: "latest"
+        default: "v1.35.0"
 
 env:
   REGISTRY: ghcr.io
@@ -29,22 +28,18 @@ jobs:
             upstream_image: ghcr.io/docling-project/docling-serve
             platforms: linux/amd64
             cache_scope: base
-            default_tag: latest
           - suffix: -cpu
             upstream_image: ghcr.io/docling-project/docling-serve-cpu
             platforms: linux/amd64,linux/arm64
             cache_scope: cpu
-            default_tag: latest
           - suffix: -cu128
             upstream_image: ghcr.io/docling-project/docling-serve-cu128
             platforms: linux/amd64
             cache_scope: cu128
-            default_tag: main
           - suffix: -cu130
             upstream_image: ghcr.io/docling-project/docling-serve-cu130
             platforms: linux/amd64
             cache_scope: cu130
-            default_tag: main
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -67,7 +62,7 @@ jobs:
 
       - name: Determine tag
         id: tag
-        run: echo "value=${{ inputs.docling_serve_tag || matrix.variant.default_tag }}" >> "$GITHUB_OUTPUT"
+        run: echo "value=${{ inputs.docling_serve_tag }}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
