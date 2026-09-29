@@ -11,8 +11,15 @@ RUN sh /tmp/install_onnxruntime_gpu.sh register-libs
 # Back to the upstream image's user
 USER 1001
 
+# Pinned so a plugin release changes this layer; unpinned, the CD layer cache kept the old plugins
+# renovate: datasource=pypi depName=docling-glm-ocr
+ARG DOCLING_GLM_OCR_VERSION=0.5.2
+# renovate: datasource=pypi depName=docling-pp-doc-layout
+ARG DOCLING_PP_DOC_LAYOUT_VERSION=0.2.4
 RUN pip install --no-cache-dir "huggingface-hub>=1.3.0" \
-    && pip install --no-cache-dir --no-deps docling-glm-ocr docling-pp-doc-layout
+    && pip install --no-cache-dir --no-deps \
+        "docling-glm-ocr==${DOCLING_GLM_OCR_VERSION}" \
+        "docling-pp-doc-layout==${DOCLING_PP_DOC_LAYOUT_VERSION}"
 
 # Mute health-probe log records (site-packages drop-in, no upstream file touched)
 COPY mute_health_logs.py /tmp/mute_health_logs.py

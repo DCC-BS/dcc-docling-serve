@@ -29,6 +29,11 @@ The plugins are selectable per-request through the standard docling-serve API:
   `layout_custom_config: { "kind": "ppdoclayout-v3" }`
 - **OCR** -- `ocr_preset: "glm-ocr-remote"`
 
+The image pins both plugin versions (`DOCLING_GLM_OCR_VERSION` and
+`DOCLING_PP_DOC_LAYOUT_VERSION` in `plugins/Dockerfile.docling-serve`). Renovate opens a
+PR when a new plugin version is released; merge it before dispatching the image build.
+Unpinned, the build's layer cache would keep shipping the old plugins.
+
 The docling-serve web UI at `/ui` is upstream's, unchanged. It lists both plugins
 among its OCR and layout choices.
 

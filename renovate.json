@@ -1,5 +1,17 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Plugin versions pinned in the docling-serve Dockerfile",
+      "managerFilePatterns": [
+        "/(^|/)Dockerfile\\.docling-serve$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\nARG \\S+=(?<currentValue>\\S+)"
+      ]
+    }
+  ],
   "dependencyDashboard": true,
   "extends": [
     "config:recommended"
@@ -94,6 +106,19 @@
       "matchPackageNames": [
         "python"
       ]
+    },
+    {
+      "automerge": false,
+      "groupName": "docling-plugins",
+      "labels": [
+        "dependencies",
+        "docling-plugins"
+      ],
+      "matchPackageNames": [
+        "docling-glm-ocr",
+        "docling-pp-doc-layout"
+      ],
+      "minimumReleaseAge": null
     }
   ],
   "platformAutomerge": true,
