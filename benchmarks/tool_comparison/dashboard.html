@@ -531,10 +531,12 @@ function matrix() {
   }).join("");
 }
 
-// ---------------------------------------------------------------- released vs fixed plugin
+// ---------------------------------------------------------------- plugin version pairs (released vs fixed by default)
 function pluginTab() {
   if (!C.pairs) return;
-  document.querySelector('nav button[data-tab="plugin"]').hidden = false;
+  const tab = document.querySelector('nav button[data-tab="plugin"]');
+  tab.hidden = false;
+  if (C.pairs_tab) tab.textContent = C.pairs_tab;
   const emptyCount = (e, kind) => e?.empty_text_pages ? e.empty_text_pages[kind].length : null;
   const sum = a => a.filter(v => v != null).reduce((x, y) => x + y, 0);
   let h = `<table><thead><tr><th>Configuration</th><th class="num">Documents</th><th class="num">Text-layer pages</th><th class="num">… empty</th><th class="num">Scanned / photo pages</th><th class="num">… empty</th><th class="num">Documents with empty pages</th><th class="num">Page split shorter than document</th></tr></thead><tbody>`;
@@ -555,7 +557,8 @@ function pluginTab() {
   const pageList = p => p.length ? (p.length > 8 ? p.slice(0, 8).join(", ") + ` … (${p.length})` : p.join(", ")) : "none";
   document.getElementById("pairs").innerHTML = C.pairs.map((p, i) => {
     const rel = TOOLS.find(t => t.id === p.released), fix = TOOLS.find(t => t.id === p.fixed);
-    const head = `<div class="card pair"><h2>${esc(p.label)}: plugin 0.2.3 (released) vs fixed</h2>`;
+    const [nA, nB] = p.names || ["released", "fixed"];
+    const head = `<div class="card pair"><h2>${esc(p.label)}: ${esc(p.title || "plugin 0.2.3 (released) vs fixed")}</h2>`;
     if (!rel || !fix) return head + `<p class="note">No results yet for ${esc([!rel && p.released, !fix && p.fixed].filter(Boolean).join(" and "))}.</p></div>`;
     const docs = S.docs.filter(d => d.tools[p.released]?.status === "ok" && d.tools[p.fixed]?.status === "ok");
     const rows = docs.map(d => {
@@ -566,8 +569,8 @@ function pluginTab() {
     });
     const shown = rows.filter(r => r.changed);
     const totals = [p.released, p.fixed].map(id => sum(docs.map(d => pages(d.tools[id]).length)));
-    let t = `<p class="note">${docs.length} documents converted by both. Pages with text that came out empty: <b>${totals[0]}</b> released, <b>${totals[1]}</b> fixed. ${shown.length} documents differ in empty pages or by more than 1 % of their words; ${docs.length - shown.length} are the same and hidden. Click a row to compare the two outputs.</p>`;
-    t += `<div class="scroll"><table><thead><tr><th>Document</th><th class="num">Pages</th><th>Empty pages, released</th><th>Empty pages, fixed</th><th class="num">Words, released</th><th class="num">Words, fixed</th><th class="num">Score, released</th><th class="num">Score, fixed</th></tr></thead><tbody>`;
+    let t = `<p class="note">${docs.length} documents converted by both. Pages with text that came out empty: <b>${totals[0]}</b> ${esc(nA)}, <b>${totals[1]}</b> ${esc(nB)}. ${shown.length} documents differ in empty pages or by more than 1 % of their words; ${docs.length - shown.length} are the same and hidden. Click a row to compare the two outputs.</p>`;
+    t += `<div class="scroll"><table><thead><tr><th>Document</th><th class="num">Pages</th><th>Empty pages, ${esc(nA)}</th><th>Empty pages, ${esc(nB)}</th><th class="num">Words, ${esc(nA)}</th><th class="num">Words, ${esc(nB)}</th><th class="num">Score, ${esc(nA)}</th><th class="num">Score, ${esc(nB)}</th></tr></thead><tbody>`;
     for (const r of shown.sort((x, y) => (pages(y.a).length - pages(y.b).length) - (pages(x.a).length - pages(x.b).length) || (y.b.words - y.a.words) - (x.b.words - x.a.words))) {
       t += `<tr class="click" data-doc="${esc(r.d.id)}" data-pair="${i}"><td>${esc(r.d.name)}</td><td class="num">${r.d.pages}</td>
         <td class="${pages(r.a).length ? "fail" : ""}">${pageList(pages(r.a))}</td><td class="${pages(r.b).length ? "fail" : ""}">${pageList(pages(r.b))}</td>

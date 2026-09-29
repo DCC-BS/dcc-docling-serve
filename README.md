@@ -449,14 +449,16 @@ folder, documents, assessment file and page texts. With no `--config` it uses
 ### OCR engine × layout model
 
 `engines.config.json` builds a second dashboard with the same page: RapidOCR and GLM-OCR,
-each with docling's default layout model and with PP-DocLayout-V3, all inside docling-serve
-with otherwise identical options. It also compares the released docling-pp-doc-layout 0.2.3
-with the fixed plugin. On top of the converter views it shows:
+each with docling's default layout model and with PP-DocLayout-V3, all in the published
+`dcc-docling-serve-cu130:v1.35.0` image (docling-glm-ocr 0.5.2, docling-pp-doc-layout 0.2.5)
+with otherwise identical options. It also compares these runs with the earlier ones on
+docling-glm-ocr 0.5.1 and docling-pp-doc-layout 0.2.4. On top of the converter views it shows:
 
 - an engine × layout grid for each key metric (ground-truth F1, scanned text, text in
   images, tables, headings, text-layer recall and precision, reference recall, time)
-- a "Released vs fixed" tab: pages with text that came out empty, and the documents where
-  the two plugin versions differ
+- a "Previous vs published" tab: pages with text that came out empty, and the documents
+  where the two plugin versions differ (tab title and column names come from `pairs_tab`
+  and each pair's `title` and `names`)
 - a "Words not in reference" tab: output words that are missing from the ground truth or
   the reference transcription, split into misreadings and words with no close match (useful
   for GLM-OCR, which is a VLM)
@@ -466,10 +468,23 @@ text layer. They are scored against the transcriptions in
 `benchmarks/tool_comparison/references.json`. Put the pros and cons into
 `engines.assessment.json` (same format as `assessment.json`).
 
+Results with the published image, all 28 documents (RTX 4090, vLLM 0.29 for GLM-OCR):
+
+| Configuration | Time | Synthetic F1 | Headings | Text-layer recall / precision | Handwritten note | Photo handwriting |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| RapidOCR + default layout | 167 s | 0.96 | 1.00 | 0.75 / 0.92 | 31 % | 30 % |
+| RapidOCR + PP-DocLayout-V3 | 199 s | 0.96 | 0.96 | 0.83 / 0.92 | 27 % | 44 % |
+| GLM-OCR + default layout | 190 s | 0.94 | 0.92 | 0.75 / 0.85 | 97 % | 85 % |
+| GLM-OCR + PP-DocLayout-V3 | 273 s | 0.94 | 0.96 | 0.84 / 0.90 | 96 % | 89 % |
+
+With docling-glm-ocr 0.5.1 the two GLM-OCR runs took 2'745 s and 2'701 s: the plugin OCR'd
+every born-digital page as a full page. The text-free photos in the Legislaturplan now come
+out empty, except for one invented English description of the city photo with PP-DocLayout-V3.
+
 Each configuration is a `run_docling.py` run whose `--tool` matches an id in the config
-(`fixed-rapidocr`, `fixed-rapidocr-pp`, `fixed-glm`, `fixed-glm-pp`,
-`released-rapidocr-pp`, `released-glm-pp`), with `--results` pointing at one shared
-folder. Then build and serve:
+(`release-rapidocr`, `release-rapidocr-pp`, `release-glm`, `release-glm-pp`, and the
+earlier `fixed-rapidocr-pp-t03`, `fixed-glm`, `fixed-glm-pp-t03`), with `--results`
+pointing at one shared folder. Then build and serve:
 
 ```bash
 cd benchmarks/tool_comparison

@@ -1,8 +1,8 @@
 {
   "assessment": "engines.assessment.json",
   "compare": {
-    "left": "fixed-rapidocr-pp",
-    "right": "fixed-glm-pp"
+    "left": "release-rapidocr-pp",
+    "right": "release-glm-pp"
   },
   "docs": [
     "../../../test-docs",
@@ -12,16 +12,14 @@
   "extra_words": true,
   "heading": "OCR engine \u00d7 layout model comparison in docling-serve",
   "matrix": [
-    "fixed-rapidocr",
-    "fixed-rapidocr-pp",
-    "fixed-glm",
-    "fixed-glm-pp",
-    "fixed-rapidocr-pp-t03",
-    "fixed-glm-pp-t03"
+    "release-rapidocr",
+    "release-rapidocr-pp",
+    "release-glm",
+    "release-glm-pp"
   ],
   "method": [
-    "<b>Setup</b>: every configuration runs in docling-serve v1.35.0 on the same RTX 4090 with the same options (table_mode accurate, ocr_lang de, pdf_backend docling_parse, markdown with image placeholders, a page-break placeholder to split pages). Only the OCR engine and the layout model change. RapidOCR runs on onnxruntime GPU with the shape patch active; GLM-OCR is the zai-org/GLM-OCR vision-language model served by vLLM 0.29 and called per region.",
-    "<b>Plugin versions</b>: \u201cfixed\u201d is docling-pp-doc-layout 0.2.4, which returns the raw layout clusters so docling post-processes them after OCR. The released 0.2.3 dropped every layout region without PDF text before OCR ran, so scanned pages and photos came out empty with region-based OCR.",
+    "<b>Setup</b>: every configuration runs in our published image <code>ghcr.io/dcc-bs/dcc-docling-serve-cu130:v1.35.0</code> (docling-serve v1.35.0, docling-glm-ocr 0.5.2, docling-pp-doc-layout 0.2.5) on the same RTX 4090 with the same options (table_mode accurate, ocr_lang de, pdf_backend docling_parse, markdown with image placeholders, a page-break placeholder to split pages). Only the OCR engine and the layout model change. RapidOCR runs on onnxruntime GPU with the shape patch active; GLM-OCR is the zai-org/GLM-OCR vision-language model served by vLLM 0.29 and called per region.",
+    "<b>Plugin versions</b>: the published image has docling-pp-doc-layout 0.2.5 (raw layout clusters, so scanned pages get OCR'd; confidence threshold 0.3 by default) and docling-glm-ocr 0.5.2 (full-page fallback only on pages without PDF text, repetition-loop guard, output cap per crop, HTML tables and code fences cleaned up). The <i>Previous vs published</i> tab compares it with the earlier local runs: docling-glm-ocr 0.5.1 with docling-pp-doc-layout 0.2.4 at threshold 0.3.",
     "<b>Timing</b>: server-side conversion time reported by docling-serve (<code>processing_time</code>), models already loaded; wall time (upload to result download) where the server did not report it. For GLM-OCR this includes the calls to the vLLM server.",
     "<b>Synthetic documents</b>: generated with exact ground truth. <i>Body F1</i> compares the words of the output with the ground-truth markdown; <i>Headings</i>, <i>Tables</i>, <i>Order</i> and <i>Noise</i> as in the converter comparison. The text-source table tags every snippet by how it is stored in the PDF (real text, vector outlines, embedded image, scan).",
     "<b>Real documents</b>: compared with the PDF's own text layer (pypdfium2) on pages that have one. Recall below 1 means missing text, precision below 1 means extra words (OCR of images, noise, duplicates).",
@@ -32,16 +30,37 @@
   "noun": "configurations",
   "pairs": [
     {
-      "fixed": "fixed-rapidocr-pp",
+      "fixed": "release-rapidocr-pp",
       "label": "RapidOCR + PP-DocLayout-V3",
-      "released": "released-rapidocr-pp"
+      "names": [
+        "previous",
+        "published"
+      ],
+      "released": "fixed-rapidocr-pp-t03",
+      "title": "previous runs vs published image"
     },
     {
-      "fixed": "fixed-glm-pp",
+      "fixed": "release-glm",
+      "label": "GLM-OCR + default layout",
+      "names": [
+        "previous",
+        "published"
+      ],
+      "released": "fixed-glm",
+      "title": "previous runs vs published image"
+    },
+    {
+      "fixed": "release-glm-pp",
       "label": "GLM-OCR + PP-DocLayout-V3",
-      "released": "released-glm-pp"
+      "names": [
+        "previous",
+        "published"
+      ],
+      "released": "fixed-glm-pp-t03",
+      "title": "previous runs vs published image"
     }
   ],
+  "pairs_tab": "Previous vs published",
   "references": "references.json",
   "results": "results/engines",
   "template": "dashboard.html",
@@ -51,51 +70,45 @@
   "tools": [
     {
       "engine": "RapidOCR",
-      "id": "fixed-rapidocr",
+      "id": "release-rapidocr",
       "label": "RapidOCR + default layout",
       "layout": "docling default"
     },
     {
       "engine": "RapidOCR",
-      "id": "fixed-rapidocr-pp",
+      "id": "release-rapidocr-pp",
       "label": "RapidOCR + PP-DocLayout-V3",
       "layout": "PP-DocLayout-V3"
     },
     {
       "engine": "GLM-OCR",
-      "id": "fixed-glm",
+      "id": "release-glm",
       "label": "GLM-OCR + default layout",
       "layout": "docling default"
     },
     {
       "engine": "GLM-OCR",
-      "id": "fixed-glm-pp",
+      "id": "release-glm-pp",
       "label": "GLM-OCR + PP-DocLayout-V3",
       "layout": "PP-DocLayout-V3"
     },
     {
       "engine": "RapidOCR",
       "id": "fixed-rapidocr-pp-t03",
-      "label": "RapidOCR + PP-DocLayout-V3 (threshold 0.3)",
+      "label": "Previous: RapidOCR + PP-DocLayout-V3 (layout 0.2.4 @ 0.3)",
       "layout": "PP-DocLayout-V3 @ 0.3"
+    },
+    {
+      "engine": "GLM-OCR",
+      "id": "fixed-glm",
+      "label": "Previous: GLM-OCR 0.5.1 + default layout",
+      "layout": "docling default"
     },
     {
       "engine": "GLM-OCR",
       "id": "fixed-glm-pp-t03",
-      "label": "GLM-OCR + PP-DocLayout-V3 (threshold 0.3)",
+      "label": "Previous: GLM-OCR 0.5.1 + PP-DocLayout-V3 (0.2.4 @ 0.3)",
       "layout": "PP-DocLayout-V3 @ 0.3"
-    },
-    {
-      "engine": "RapidOCR",
-      "id": "released-rapidocr-pp",
-      "label": "RapidOCR + PP-DocLayout-V3 (plugin 0.2.3, released)",
-      "layout": "PP-DocLayout-V3"
-    },
-    {
-      "engine": "GLM-OCR",
-      "id": "released-glm-pp",
-      "label": "GLM-OCR + PP-DocLayout-V3 (plugin 0.2.3, released)",
-      "layout": "PP-DocLayout-V3"
     }
   ]
 }

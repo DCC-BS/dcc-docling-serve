@@ -24,7 +24,8 @@ What is compared comes from a JSON config (paths relative to the config file):
     time                         "wall" (record seconds) or "server" (meta.server_processing_s)
     compare                      {left, right}: tools selected in the Compare tab
     matrix                       tool ids with engine/layout, shown as an engine x layout grid
-    pairs                        [{label, released, fixed}]: plugin versions to compare
+    pairs                        [{label, released, fixed, title?, names?}]: plugin versions to compare
+    pairs_tab                    title of the pairs tab (default "Released vs fixed")
     extra_words                  list the output words that are not in the ground truth/reference
     method                       HTML bullet points for the Method tab
 
@@ -185,7 +186,19 @@ def load_config(args: argparse.Namespace) -> dict:
 
 def display_config(config: dict) -> dict:
     """The part of the config the page needs."""
-    keys = ("title", "heading", "noun", "tool_noun", "time", "compare", "matrix", "pairs", "extra_words", "method")
+    keys = (
+        "title",
+        "heading",
+        "noun",
+        "tool_noun",
+        "time",
+        "compare",
+        "matrix",
+        "pairs",
+        "pairs_tab",
+        "extra_words",
+        "method",
+    )
     shown = {k: config[k] for k in keys if k in config}
     if "matrix" in shown:  # labels for cells whose tool has no results yet
         shown["matrix"] = [config["tools"][t] for t in shown["matrix"]]

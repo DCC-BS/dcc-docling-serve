@@ -1,97 +1,79 @@
 {
   "_findings": [
-    "The PP-DocLayout-V3 fix (plugin 0.2.4) works: with RapidOCR, scanned-page text goes from 2 % to 100 %, synthetic ground-truth F1 from 0.84 to 0.95, the handwritten note and the phone photo from empty to readable; born-digital documents are unchanged (text-layer recall 0.825 \u2192 0.828).",
-    "For printed and born-digital documents RapidOCR is the right default: the same quality as GLM-OCR on the synthetic set (F1 0.96 vs 0.94) at a sixteenth of the time (170 s vs 2'745 s for all 28 documents).",
-    "GLM-OCR is far better on handwriting and photos: 97 % of the handwritten note (RapidOCR 27\u201331 %) and 85 % of the phone photo's handwriting with the default layout (RapidOCR 11\u201330 %). Its misreadings can change the meaning (\"FORCED AND NATURAL\"); check the \"Words not in reference\" tab.",
-    "GLM-OCR plugin bug (docling-glm-ocr): when docling finds nothing to OCR on a page, the plugin OCRs the whole page instead. Every born-digital page goes to the VLM (CELEX: 1'791 s vs 92 s with RapidOCR; 5 of 5 probed pages sent as full-page crops) and the extra OCR text lowers precision against the text layer (0.82 vs 0.92).",
-    "PP-DocLayout-V3 at confidence threshold 0.3 (now set in compose.yaml) instead of 0.5: phone-photo handwriting 11 % \u2192 44 % with RapidOCR and 22 % \u2192 89 % with GLM-OCR, synthetic headings 0.85 \u2192 0.96, no empty pages left with GLM-OCR; born-digital text unchanged (text-layer recall 0.828 \u2192 0.825 / 0.837).",
-    "Risk at 0.3 with GLM-OCR: low-confidence regions on text-free photos are sent to the VLM, which can invent text. On the Legislaturplan's full-page Basel photo GLM-OCR produced made-up place names and \"Wiesbaden\" 483 times (a repetition loop); RapidOCR correctly returns nothing there. The GLM-OCR plugin needs a repetition guard and an output cap per crop. It also leaks raw HTML table markup and code fences into the markdown.",
-    "PP-DocLayout-V3 recovers more real text than docling's default layout (text-layer recall 0.83 vs 0.75, e.g. labels on the architectural plans that the default layout treats as one picture) but finds fewer headings on the synthetic set (0.85 vs 1.00). With GLM-OCR on the phone photo its regions fragment the handwriting (22 % vs 85 % with the default layout).",
-    "Before the fix, GLM-OCR + PP-DocLayout-V3 looked fine on scans only because of the GLM-OCR full-page fallback covering for the layout plugin bug."
+    "Published image (dcc-docling-serve-cu130:v1.35.0 with docling-glm-ocr 0.5.2 and docling-pp-doc-layout 0.2.5): all four configurations convert all 28 documents.",
+    "GLM-OCR is now about as fast as RapidOCR: 190 s for all 28 documents with the default layout (2'745 s with plugin 0.5.1) and 273 s with PP-DocLayout-V3 (2'701 s). The 30-page CELEX excerpt went from about 1'790 s to 92\u2013102 s because born-digital pages are no longer sent to the VLM as full pages.",
+    "Output quality is unchanged where it was good: synthetic F1 0.94, handwritten note 96\u201397 %, phone photo handwriting 85\u201389 %. Precision against the text layer rose (0.82 \u2192 0.85 default layout, 0.89 \u2192 0.90 with PP-DocLayout-V3; Legislaturplan 0.83 \u2192 0.96) because the hallucinated loops, HTML tables and code fences are gone.",
+    "The Legislaturplan's two text-free photo pages now come out empty with GLM-OCR, as with RapidOCR. One invention is left: with PP-DocLayout-V3, GLM-OCR describes the city photo on page 2 in one English paragraph (\u201cThis image presents an aerial view\u2026\u201d). The dashboard counts these photo pages as text pages only because earlier runs hallucinated on them, so the \u201cempty pages\u201d there are correct.",
+    "RapidOCR + PP-DocLayout-V3 is identical to the previous run at threshold 0.3, confirming 0.3 is now the plugin default.",
+    "Recommendation: RapidOCR + PP-DocLayout-V3 for printed documents, scans, plans and photos with printed text; GLM-OCR + PP-DocLayout-V3 when handwriting matters. GLM-OCR can still misread words in a way that changes the meaning, see the \u201cWords not in reference\u201d tab."
   ],
   "fixed-glm": {
     "cons": [
-      "16\u00d7 slower than RapidOCR (2'745 s, 1.87 s per page): the plugin sends every page without OCR regions to the VLM as a full page.",
-      "Lower precision against the text layer (0.82 vs 0.92) and VLM misreadings that can change the meaning."
+      "2'745 s: every born-digital page OCR'd as a full page.",
+      "Prompt echo, HTML tables and code fences in the output."
     ],
     "pros": [
-      "Handwritten note 97 %, phone photo 85 % handwriting and 100 % printed text.",
-      "Synthetic set close to RapidOCR (F1 0.94, scanned page 0.96)."
+      "Same handwriting quality as the published image."
     ],
-    "verdict": "Best for handwriting and photos; do not use on born-digital documents until the plugin's full-page fallback is fixed."
-  },
-  "fixed-glm-pp": {
-    "cons": [
-      "Phone photo handwriting drops to 22 %: PP-DocLayout-V3 regions fragment the handwriting before GLM-OCR reads it.",
-      "Same full-page fallback cost as GLM-OCR with the default layout (2'792 s)."
-    ],
-    "pros": [
-      "Text-layer recall 0.83 (layout finds the plan labels); handwritten note 97 %."
-    ],
-    "verdict": "No advantage over GLM-OCR with the default layout on photos; same speed problem."
+    "verdict": "Previous run with docling-glm-ocr 0.5.1."
   },
   "fixed-glm-pp-t03": {
     "cons": [
-      "Hallucinates on text-free photos: \"Wiesbaden\" \u00d7483 on the Legislaturplan's photo page; precision on that document drops from 0.98 to 0.83.",
-      "Same full-page fallback cost as the other GLM-OCR runs (2'701 s).",
-      "Emits raw HTML tables and code fences into the markdown."
+      "2'701 s; hallucination loop (\u201cWiesbaden\u201d \u00d7483) on the Legislaturplan photo pages; precision there 0.83."
     ],
     "pros": [
-      "Phone photo handwriting 89 % (22 % at 0.5), handwritten note 97 %, headings 0.96, synthetic F1 0.95, no empty pages.",
-      "Highest text-layer recall of all configurations (0.837)."
+      "Same handwriting quality as the published image."
     ],
-    "verdict": "Best quality on handwriting and photos, but guard against hallucinations before relying on it."
-  },
-  "fixed-rapidocr": {
-    "cons": [
-      "Handwriting: 31 % of the handwritten note, 30 % of the phone photo's handwriting, none of the printed letterhead on the photo.",
-      "The default layout treats most of the architectural plans as one picture (three of five come out empty), so their text is missing (text-layer recall 0.75)."
-    ],
-    "pros": [
-      "Fastest configuration: 170 s for all 28 documents, 0.24 s per page (CELEX in 92 s).",
-      "Synthetic set: F1 0.96, tables 1.00, headings 1.00, scanned page 0.99, text in screenshots 1.00."
-    ],
-    "verdict": "Fast, complete default for printed documents; weak on handwriting."
-  },
-  "fixed-rapidocr-pp": {
-    "cons": [
-      "Fewer headings on the synthetic set (0.85 vs 1.00 with the default layout).",
-      "Handwriting stays weak (27 % note, 11 % photo)."
-    ],
-    "pros": [
-      "Best text-layer recall together with GLM-OCR + PP (0.83) at RapidOCR speed (189 s, 0.23 s per page).",
-      "Scanned page 1.00, text in screenshots 1.00; recovers the letterhead on the phone photo (50 %)."
-    ],
-    "verdict": "Recommended for printed documents with plans, charts or complex layouts."
+    "verdict": "Previous run with docling-glm-ocr 0.5.1."
   },
   "fixed-rapidocr-pp-t03": {
-    "cons": [
-      "Handwriting is still limited by RapidOCR itself (27 % of the handwritten note)."
-    ],
+    "cons": [],
     "pros": [
-      "Same speed as at 0.5 (197 s for all 28 documents) and no invented text.",
-      "Headings 0.96 (0.85 at 0.5), synthetic F1 0.95, scanned page and screenshot text 1.00, text-layer recall 0.825.",
-      "Phone photo: handwriting 44 % (11 % at 0.5), printed text 57 %."
+      "Same output as the published image."
     ],
-    "verdict": "Recommended default for printed documents, scans and photos with printed text."
+    "verdict": "Previous local run (plugin 0.2.4, threshold set to 0.3)."
   },
-  "released-glm-pp": {
+  "release-glm": {
     "cons": [
-      "Same speed problem as the fixed GLM-OCR runs (2'760 s).",
-      "Text in screenshots and outlined text drop (0.75, 0.02) because the layout plugin still discards regions without PDF text."
+      "Text-layer recall 0.75 and precision 0.85: the default layout misses the plan labels and GLM-OCR rewrites some text.",
+      "Headings 0.92 on the synthetic set; VLM misreadings can change the meaning."
     ],
     "pros": [
-      "Scanned page 1.00, handwritten note 96 %, phone photo 81 % handwriting."
+      "Handwritten note 97 %, photo handwriting 85 % and printed text 100 %.",
+      "190 s for all 28 documents (2'745 s with plugin 0.5.1)."
     ],
-    "verdict": "Looked fine on scans only because GLM-OCR's full-page fallback hid the layout bug."
+    "verdict": "Good for handwriting; PP-DocLayout-V3 is the better layout with it."
   },
-  "released-rapidocr-pp": {
+  "release-glm-pp": {
     "cons": [
-      "Scanned and image-only pages come out empty: synthetic scan 2 %, handwritten note and phone photo 0 words, Offerte page 4 empty."
+      "Invents a one-paragraph English description of the Legislaturplan's text-free city photo.",
+      "Photo printed text 50 %; VLM misreadings can change the meaning."
     ],
     "pros": [
-      "Born-digital documents are unaffected (text-layer recall 0.825)."
+      "Best text-layer recall (0.84) and photo handwriting (89 %); handwritten note 96 %, headings 0.96.",
+      "273 s for all 28 documents (2'701 s with plugin 0.5.1)."
     ],
-    "verdict": "Broken on scans and images (plugin 0.2.3): shown for comparison only."
+    "verdict": "Best choice when handwriting or photos matter; check pages that are pure pictures."
+  },
+  "release-rapidocr": {
+    "cons": [
+      "The default layout treats most architectural plans as one picture, so their labels are missing (text-layer recall 0.75).",
+      "Handwriting weak: 31 % of the note, 30 % of the photo."
+    ],
+    "pros": [
+      "Fastest: 167 s for 28 documents; synthetic F1 0.96, headings and tables 1.00."
+    ],
+    "verdict": "Fast default for simple printed documents."
+  },
+  "release-rapidocr-pp": {
+    "cons": [
+      "Handwriting limited by RapidOCR itself (27 % of the note).",
+      "Headings 0.96 vs 1.00 with the default layout."
+    ],
+    "pros": [
+      "Text-layer recall 0.83 (plan labels found) at nearly RapidOCR speed (199 s).",
+      "Scanned pages and text in screenshots complete; photo: 44 % handwriting, 57 % printed text. No invented text."
+    ],
+    "verdict": "Recommended default for printed documents, scans, plans and photos with printed text."
   }
 }
