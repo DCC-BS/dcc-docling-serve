@@ -196,7 +196,7 @@ always take precedence when using the Python SDK directly.
 | Variable | Description | Default |
 | --- | --- | --- |
 | `PP_DOC_LAYOUT_MODEL_NAME` | HuggingFace model repo ID | `PaddlePaddle/PP-DocLayoutV3_safetensors` |
-| `PP_DOC_LAYOUT_CONFIDENCE_THRESHOLD` | Minimum detection confidence (0.0–1.0) | `0.5` (`compose.yaml` sets `0.3`) |
+| `PP_DOC_LAYOUT_CONFIDENCE_THRESHOLD` | Minimum detection confidence (0.0–1.0) | `0.3` |
 | `PP_DOC_LAYOUT_BATCH_SIZE` | Batch size for layout inference | `8` |
 | `PP_DOC_LAYOUT_CREATE_ORPHAN_CLUSTERS` | Create clusters for orphaned elements (`true`/`false`) | `true` |
 | `PP_DOC_LAYOUT_KEEP_EMPTY_CLUSTERS` | Retain empty clusters in results (`true`/`false`) | `false` |
@@ -204,14 +204,15 @@ always take precedence when using the Python SDK directly.
 
 Boolean variables accept `true`, `1`, `yes` (case-insensitive) as truthy; anything else is `false`.
 
-`compose.yaml` lowers `PP_DOC_LAYOUT_CONFIDENCE_THRESHOLD` to `0.3`. docling only OCRs inside
+The threshold defaults to `0.3` since plugin 0.2.5 (it was `0.5`). docling only OCRs inside
 layout regions, and PP-DocLayout-V3 (trained on document pages) detects handwriting on phone
 photos with only 0.3–0.4 confidence. At `0.5` most of the handwritten list on the test photo got
 no region and was never read. At `0.3` over all 28 test documents: photo handwriting 11 % → 44 % with
 RapidOCR and 22 % → 89 % with GLM-OCR, headings on the synthetic documents 0.85 → 0.96, born-digital
 text unchanged. The catch: GLM-OCR also gets low-confidence regions on text-free photos and can
-invent text there (on one photo page it repeated "Wiesbaden" 483 times); RapidOCR does not. See the
-engine dashboard for the full comparison.
+invent text there (on one photo page it repeated "Wiesbaden" 483 times); RapidOCR does not.
+GLM-OCR 0.5.2 discards such repetition loops, but a short invented line can still get through. See
+the engine dashboard for the full comparison.
 
 ### SDK option reference
 
