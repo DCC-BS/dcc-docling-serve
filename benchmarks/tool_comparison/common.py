@@ -31,8 +31,14 @@ def parser(description: str) -> argparse.ArgumentParser:
 
 
 def list_docs(folders: list[Path], only: list[str] | None = None) -> list[Path]:
+    """Documents in the given folders (single files are accepted too), smallest first."""
     docs = sorted(
-        (p for folder in folders for p in folder.iterdir() if p.suffix.lower() in SUPPORTED_SUFFIXES),
+        (
+            p
+            for folder in folders
+            for p in (folder.iterdir() if folder.is_dir() else [folder])
+            if p.suffix.lower() in SUPPORTED_SUFFIXES
+        ),
         key=lambda p: p.stat().st_size,
     )
     return [d for d in docs if not only or d.name in only]

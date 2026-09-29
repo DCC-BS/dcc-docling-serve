@@ -35,6 +35,9 @@ def main() -> None:
     p.add_argument("--tool", required=True)
     p.add_argument("--image", required=True)
     p.add_argument("--env", action="append", default=[], help="KEY=VALUE passed to the container")
+    p.add_argument("--option", action="append", default=[], metavar="KEY=VALUE",
+                   help="Extra or overriding conversion option, e.g. layout_preset=ppdoclayout-v3")  # fmt: skip
+    p.add_argument("--docker-arg", action="append", default=[], help="Extra argument for docker run")
     p.add_argument("--gpu-device", default="0")
     p.add_argument("--port", type=int, default=5093)
     p.add_argument("--timeout", type=float, default=7200)
@@ -47,6 +50,11 @@ def main() -> None:
                "--gpus", f"device={args.gpu_device}"]  # fmt: skip
     for item in args.env:
         command += ["-e", item]
+    command += args.docker_arg
+    options = dict(OPTIONS)
+    for item in args.option:
+        key, _, value = item.partition("=")
+        options[key] = value
     client = httpx.Client(base_url=f"http://127.0.0.1:{args.port}", timeout=httpx.Timeout(900, connect=10))
     t0 = time.perf_counter()
     subprocess.run([*command, args.image], check=True, stdout=subprocess.DEVNULL)
@@ -63,7 +71,7 @@ def main() -> None:
         def convert(doc):
             t_start = time.perf_counter()
             with doc.open("rb") as handle:
-                response = client.post("/v1/convert/file/async", files={"files": (doc.name, handle)}, data=OPTIONS)
+                response = client.post("/v1/convert/file/async", files={"files": (doc.name, handle)}, data=options)
             response.raise_for_status()
             task_id = response.json()["task_id"]
             while True:
@@ -89,7 +97,7 @@ def main() -> None:
         warm_t0 = time.perf_counter()
         convert(docs[0])
         recorder.setup(startup_s=startup, first_conversion_s=time.perf_counter() - warm_t0, image=args.image,
-                       env=args.env)  # fmt: skip
+                       env=args.env, options=args.option)  # fmt: skip
         log(f"{args.tool}: healthy after {startup:.1f}s")
         recorder.run(docs, convert)
     finally:

@@ -1,0 +1,15 @@
+{
+  "PXL_20260218_070037536.MP.jpg": {
+    "description": "Phone photo of handwritten notes on a hotel notepad",
+    "parts": {
+      "Handwriting": "Confluence Page f\u00fcr feature release monitoring - MCP - Sandbox - skills.md - Response API - Agent 2 Agent Protokoll - realtime API / Websockets H200 vs B200 confluence - NVFP4 format run:ai",
+      "Printed text": "DER TEUFELHOF BASEL Das Gast- und Kulturhaus SET www.teufelhof.com www.sethotelbasel.com"
+    }
+  },
+  "ocr.png": {
+    "description": "Handwritten note, three handwriting styles",
+    "parts": {
+      "Handwriting": "Today is Thursday, October 20th \u2014 But it definitely feels like a Friday. I'm already considering making a second cup of coffee \u2014 and I haven't even finished my first. Do I have a problem? Sometimes I'll flip through older notes I've taken, and my handwriting is unrecognizable. Perhaps it depends on the type of pen I use? I've tried writing in all caps but it LOOKS SO FORCED AND UNNATURAL. Often times, I'll just take notes on my laptop, but I still seem to gravitate toward pen and paper. Any advice on what to improve? I already feel stressed out looking back at what I've just written \u2014 it looks like 3 different people wrote this!!"
+    }
+  }
+}

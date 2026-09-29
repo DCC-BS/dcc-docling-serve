@@ -53,6 +53,8 @@ section[hidden] { display: none; }
 .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
 .card { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 16px; min-width: 0; }
 .card p.note { color: var(--muted); font-size: 12px; margin: 2px 0 12px; }
+span.note { color: var(--muted); font-size: 12px; }
+a { color: var(--accent); }
 .tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 16px; }
 .tile { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 12px 14px; }
 .tile .v { font-size: 24px; font-weight: 650; }
@@ -98,17 +100,28 @@ del { background: var(--del); color: var(--del-ink); text-decoration: none; bord
 .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); margin: 0 0 8px; }
 .sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 4px; border: 1px solid var(--ring); }
 .method p, .method li { max-width: 900px; }
+.matrix { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.matrix .card { padding: 12px; }
+.matrix table { table-layout: fixed; }
+.matrix th:first-child, .matrix td:first-child { width: 34%; }
+.matrix td.h { min-width: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 10px; }
+.chip { font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 0 6px; border-radius: 4px; background: var(--raised); border: 1px solid var(--ring); }
+.chip small { color: var(--muted); font-family: system-ui, sans-serif; }
+.pair { margin-top: 16px; }
 @media (max-width: 1100px) { .compare { grid-template-columns: 1fr; } .pane { max-height: none; } }
 @media (max-width: 520px) { header, main { padding-left: 16px; padding-right: 16px; } .grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
 <header>
-  <h1>PDF → Markdown converter comparison</h1>
+  <h1 id="heading">PDF → Markdown converter comparison</h1>
   <p class="sub" id="subtitle"></p>
   <nav role="tablist">
     <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
     <button role="tab" data-tab="docs">Documents</button>
+    <button role="tab" data-tab="plugin" hidden>Released vs fixed</button>
+    <button role="tab" data-tab="extra" hidden>Words not in reference</button>
     <button role="tab" data-tab="compare">Compare</button>
     <button role="tab" data-tab="method">Method &amp; assessment</button>
   </nav>
@@ -120,12 +133,18 @@ del { background: var(--del); color: var(--del-ink); text-decoration: none; bord
     <h2>Key findings</h2>
     <ul class="findings" id="findings"></ul>
   </div>
+  <div class="card" style="margin-bottom:16px" id="matrix-card" hidden>
+    <h2>OCR engine × layout model</h2>
+    <p class="note" id="matrix-note"></p>
+    <div class="matrix" id="matrix"></div>
+  </div>
   <div class="grid">
-    <div class="card"><h2>Total conversion time</h2><p class="note">Sum over the documents every tool converted successfully, models already loaded. Hover for failures.</p><div id="chart-total"></div></div>
+    <div class="card"><h2>Total conversion time</h2><p class="note" id="note-total">Sum over the documents every tool converted successfully, models already loaded. Hover for failures.</p><div id="chart-total"></div></div>
     <div class="card"><h2>Seconds per page</h2><p class="note">Median over documents of conversion time divided by page count.</p><div id="chart-page"></div></div>
     <div class="card"><h2>Ground-truth quality (synthetic documents)</h2><p class="note">Mean over the 4 synthetic PDFs. 1.00 = perfect. Noise = share of output words that are not in the document.</p><div class="scroll" id="heat-gt"></div></div>
     <div class="card"><h2>Where the text comes from (synthetic documents)</h2><p class="note">Share of the words of each text source found in the output. Only OCR can recover outlined, image and scanned text.</p><div class="scroll" id="heat-sources"></div></div>
     <div class="card"><h2>Coverage of the PDF text layer (real documents)</h2><p class="note">Word recall and precision against the PDF's own text, over pages that have one. Recall below 1 means missing text; precision below 1 means extra words (OCR of images, noise, duplicates).</p><div class="scroll" id="heat-layer"></div></div>
+    <div class="card" id="ref-card" hidden><h2>Reference transcriptions (images without a text layer)</h2><p class="note">Share of the words of each hand-made transcription found in the output, and precision: share of output words that are in the transcription.</p><div class="scroll" id="heat-ref"></div></div>
     <div class="card"><h2>Startup and model loading</h2><p class="note">Time before the first document can be converted (container start or model load) plus the first, cold conversion.</p><div id="chart-setup"></div></div>
   </div>
   <div class="card" style="margin-top:16px" id="tools-card" hidden>
@@ -138,10 +157,29 @@ del { background: var(--del); color: var(--del-ink); text-decoration: none; bord
 <section id="tab-docs" hidden>
   <div class="card">
     <h2>Per document</h2>
-    <p class="note">Each cell: conversion time and word recall against the PDF text layer (or the ground truth for synthetic documents). Cell colour = recall. Click a row to compare outputs.</p>
+    <p class="note" id="doc-note">Each cell: conversion time and word recall against the PDF text layer (or the ground truth for synthetic documents). Cell colour = recall. Click a row to compare outputs.</p>
     <div class="legend" id="doc-legend"></div>
     <div class="scroll" id="doc-table"></div>
   </div>
+</section>
+
+<section id="tab-plugin" hidden>
+  <div class="card">
+    <h2>Pages with text that came out empty</h2>
+    <p class="note">A page has text when its text layer has at least 20 words or any configuration read at least 20 words from it (scans, photos). Empty = fewer than 5 words in the output. Counted over each configuration's own documents.</p>
+    <div class="scroll" id="empty-table"></div>
+  </div>
+  <div id="pairs"></div>
+</section>
+
+<section id="tab-extra" hidden>
+  <div class="card" style="margin-bottom:16px">
+    <h2>Share of output words that are not in the reference</h2>
+    <p class="note">Against the ground truth (synthetic documents) or the hand-made transcription (images). High values mean misreadings, or text the engine made up. Click a column to list the words.</p>
+    <div class="scroll" id="extra-heat"></div>
+  </div>
+  <div class="controls"><label>Document <select id="x-doc"></select></label></div>
+  <div class="pros-cons" id="extra-lists"></div>
 </section>
 
 <section id="tab-compare" hidden>
@@ -168,6 +206,7 @@ del { background: var(--del); color: var(--del-ink); text-decoration: none; bord
 
 <script>
 const S = window.__summary;
+const C = S.config || {};
 const TOOLS = S.tools;
 const LABEL = Object.fromEntries(TOOLS.map(t => [t.id, t.label]));
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -176,6 +215,12 @@ const pct = v => v == null ? "–" : Math.round(v * 100) + "%";
 const mean = a => { const b = a.filter(v => v != null && !Number.isNaN(v)); return b.length ? b.reduce((x, y) => x + y, 0) / b.length : null; };
 const median = a => { const b = a.filter(v => v != null).sort((x, y) => x - y); if (!b.length) return null; const m = b.length >> 1; return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2; };
 const RAMP = ["--s100","--s150","--s200","--s250","--s300","--s350","--s400","--s450","--s500","--s550","--s600","--s650","--s700"];
+const NOUN = C.noun || "converters";
+if (C.title) document.title = C.title;
+if (C.heading) document.getElementById("heading").textContent = C.heading;
+const refDocs = S.docs.filter(d => d.reference);
+// Score shown per document: ground truth, reference transcription, else PDF text layer
+const docScore = (d, e) => d.synthetic ? e?.gt?.body_recall : d.reference ? e?.ref?.recall : e?.layer?.recall;
 function heat(v) {   // 0..1 -> sequential blue; returns style
   if (v == null) return "";
   const i = Math.max(0, Math.min(RAMP.length - 1, Math.round(v * (RAMP.length - 1))));
@@ -199,7 +244,9 @@ function bindTip(el, html) {
 
 // ---------------------------------------------------------------- bar chart (single measure, one hue)
 function barChart(el, rows, unit, digits = 1) {
-  const w = 560, rowH = 30, left = 210, right = 70, h = rows.length * rowH + 24;
+  // label column fits the longest label (12px text), at least 210px
+  const left = Math.max(210, Math.min(360, 12 + 6.6 * Math.max(...rows.map(r => r.label.length)))), w = 350 + left;
+  const rowH = 30, right = 70, h = rows.length * rowH + 24;
   const raw = Math.max(...rows.map(r => r.value ?? 0), 1e-9);
   const step = (() => { const s = raw / 4, m = 10 ** Math.floor(Math.log10(s)); return [1, 2, 2.5, 5, 10].map(f => f * m).find(v => v >= s); })();
   const max = step * Math.ceil(raw / step);
@@ -243,14 +290,18 @@ function overview() {
   const docs = S.docs, real = docs.filter(d => !d.synthetic), synth = docs.filter(d => d.synthetic);
   const pages = docs.reduce((a, d) => a + d.pages, 0);
   document.getElementById("subtitle").textContent =
-    `${TOOLS.length} converters on ${docs.length} documents (${pages} pages): ${real.length} real test documents and ${synth.length} synthetic PDFs with exact ground truth.`;
+    `${TOOLS.length} ${NOUN} on ${docs.length} documents (${pages} pages): ${real.length} real test documents and ${synth.length} synthetic PDFs with exact ground truth` +
+    (refDocs.length ? `; ${refDocs.length} images are scored against a reference transcription.` : ".");
   const common = docs.filter(d => TOOLS.every(t => d.tools[t.id]?.status === "ok"));
   const tiles = [
-    [docs.length, "documents"], [pages, "pages"], [TOOLS.length, "converters"],
-    [common.length, "documents converted by every tool"],
+    [docs.length, "documents"], [pages, "pages"], [TOOLS.length, NOUN],
+    [common.length, `documents converted by every ${C.tool_noun || "tool"}`],
   ];
   document.getElementById("tiles").innerHTML = tiles.map(([v, l]) => `<div class="tile"><div class="v">${v}</div><div class="l">${esc(l)}</div></div>`).join("");
 
+  if (C.time === "server") {
+    document.getElementById("note-total").textContent = "Server-side conversion time (docling-serve processing_time), summed over the documents every configuration converted, models already loaded. Hover for failures.";
+  }
   barChart(document.getElementById("chart-total"), TOOLS.map(t => {
     const failed = docs.filter(d => d.tools[t.id] && d.tools[t.id].status !== "ok");
     const all = docs.filter(d => d.tools[t.id]?.status === "ok").reduce((a, d) => a + d.tools[t.id].seconds, 0);
@@ -299,10 +350,25 @@ function overview() {
     } };
   }));
 
+  if (refDocs.length) {
+    document.getElementById("ref-card").hidden = false;
+    const refCols = refDocs.flatMap(d => {
+      const parts = d.reference.parts;
+      const short = d.name.length > 14 ? d.name.slice(0, 12) + "…" : d.name;
+      return [...parts.map(p => ({ key: d.id + "|" + p, label: `${short} · ${p}`, title: `${d.name}: recall of the ${p.toLowerCase()}`, format: pct })),
+        { key: d.id + "|precision", label: `${short} · precision`, title: `${d.name}: share of output words that are in the transcription`, format: pct }];
+    });
+    heatTable(document.getElementById("heat-ref"), refCols, TOOLS.map(t => ({ label: t.label, values: Object.fromEntries(refCols.map(c => {
+      const [id, part] = c.key.split("|"), r = S.docs.find(d => d.id === id).tools[t.id]?.ref;
+      return [c.key, part === "precision" ? r?.precision : r?.parts?.[part]];
+    })) })));
+  }
+  matrix();
+
   if (S.assessment) {
-    document.getElementById("assessment-card").hidden = false;
-    document.getElementById("tools-card").hidden = false;
     const findings = S.assessment._findings || [];
+    document.getElementById("assessment-card").hidden = !findings.length;
+    document.getElementById("tools-card").hidden = !TOOLS.some(t => S.assessment[t.id]);
     document.getElementById("findings").innerHTML = findings.map(f => `<li>${esc(f)}</li>`).join("");
     document.getElementById("pros-cons").innerHTML = TOOLS.map(t => {
       const a = S.assessment[t.id]; if (!a) return "";
@@ -317,19 +383,23 @@ function docsTable() {
   document.getElementById("doc-legend").innerHTML = [0, .25, .5, .75, 1].map(v => `<span><span class="sw" style="${heat(v)}"></span>${pct(v)}</span>`).join("") + `<span><span class="fail">failed</span></span>`;
   let h = `<table><thead><tr><th>Document</th><th class="num">Pages</th><th class="num">Text-layer pages</th>${TOOLS.map(t => `<th class="num">${esc(t.label)}</th>`).join("")}</tr></thead><tbody>`;
   for (const d of S.docs) {
-    h += `<tr class="click" data-doc="${esc(d.id)}"><td>${esc(d.name)} ${d.synthetic ? '<span class="badge">synthetic</span>' : ""}</td><td class="num">${d.pages}</td><td class="num">${d.text_layer_pages}</td>`;
+    h += `<tr class="click" data-doc="${esc(d.id)}"><td>${esc(d.name)} ${d.synthetic ? '<span class="badge">synthetic</span>' : ""}${d.reference ? '<span class="badge">reference</span>' : ""}</td><td class="num">${d.pages}</td><td class="num">${d.text_layer_pages}</td>`;
     for (const t of TOOLS) {
       const e = d.tools[t.id];
       if (!e) { h += `<td class="num">–</td>`; continue; }
       if (e.status !== "ok") { h += `<td class="num fail" title="${esc(e.error)}">✕ failed</td>`; continue; }
-      const r = d.synthetic ? e.gt?.body_recall : e.layer?.recall;
+      const r = docScore(d, e);
       h += `<td class="num" style="${heat(r)}" title="recall ${pct(r)}">${fmt(e.seconds)} s · ${pct(r)}</td>`;
     }
     h += "</tr>";
   }
+  if (refDocs.length) document.getElementById("doc-note").textContent = "Each cell: conversion time and word recall against the PDF text layer (or the ground truth for synthetic documents, or the reference transcription for images). Cell colour = recall. Click a row to compare outputs.";
   const el = document.getElementById("doc-table");
   el.innerHTML = h + "</tbody></table>";
-  el.querySelectorAll("tr.click").forEach(tr => tr.addEventListener("click", () => { cDoc.value = tr.dataset.doc; showTab("compare"); loadDoc(); }));
+  el.querySelectorAll("tr.click").forEach(tr => tr.addEventListener("click", () => openCompare(tr.dataset.doc)));
+}
+function openCompare(id, left, right) {
+  cDoc.value = id; showTab("compare"); loadDoc(left, right);
 }
 
 // ---------------------------------------------------------------- compare
@@ -337,16 +407,22 @@ const cDoc = document.getElementById("c-doc"), cPage = document.getElementById("
 const cLeft = document.getElementById("c-left"), cRight = document.getElementById("c-right"), cView = document.getElementById("c-view");
 let current = null;
 function loadScript(src) { return new Promise((ok, fail) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = fail; document.head.appendChild(s); }); }
-async function loadDoc() {
+async function loadDoc(left, right) {
   const id = cDoc.value;
   window.__docData = window.__docData || {};
   if (!window.__docData[id]) await loadScript(`data/docs/${encodeURIComponent(id)}.js`);
   current = window.__docData[id];
-  const sources = [...TOOLS.map(t => [t.id, t.label]).filter(([k]) => current.tools[k]), ["__layer", "PDF text layer"]];
+  const toolSources = TOOLS.map(t => [t.id, t.label]).filter(([k]) => current.tools[k]);
+  const sources = [...toolSources];
+  if (/\.pdf$/i.test(current.name)) sources.push(["__layer", "PDF text layer"]);
   if (current.reference.ground_truth) sources.push(["__gt", "Ground truth"]);
-  const keep = (sel, fallback) => { const v = sel.value; sel.innerHTML = sources.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join(""); sel.value = sources.some(([k]) => k === v) ? v : fallback; };
-  keep(cLeft, current.reference.ground_truth ? "__gt" : "docling-gpu-ocr-noshape");
-  keep(cRight, "marker");
+  if (current.reference.transcription) sources.push(["__ref", "Reference transcription"]);
+  const has = k => sources.some(([s]) => s === k);
+  const pick = (...keys) => keys.find(has) ?? sources[0]?.[0];
+  const cmp = C.compare || { left: "docling-gpu-ocr-noshape", right: "marker" };
+  const keep = (sel, wanted, fallback, avoid) => { const v = sel.value; sel.innerHTML = sources.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join(""); sel.value = wanted && has(wanted) ? wanted : has(v) && v !== avoid ? v : fallback; };
+  keep(cLeft, left, pick(current.reference.ground_truth ? "__gt" : current.reference.transcription ? "__ref" : cmp.left, cmp.left, toolSources[0]?.[0]));
+  keep(cRight, right, pick(cmp.right, ...toolSources.map(([k]) => k).filter(k => k !== cLeft.value)), cLeft.value);
   cPage.innerHTML = current.images.map((_, i) => `<option value="${i}">${i + 1} / ${current.images.length}</option>`).join("");
   cPage.value = "0";
   renderCompare();
@@ -354,9 +430,10 @@ async function loadDoc() {
 function sourceText(key, page) {
   if (key === "__layer") return { text: current.reference.layer_pages[page] ?? "", paged: true, name: "PDF text layer" };
   if (key === "__gt") return { text: current.reference.ground_truth, paged: false, name: "Ground truth" };
+  if (key === "__ref") return { text: current.reference.transcription, paged: false, name: "Reference transcription" };
   const t = current.tools[key];
   if (!t || t.status !== "ok") return { text: "", paged: true, name: LABEL[key], error: t?.error || "no output" };
-  return t.pages ? { text: t.pages[page] ?? "", paged: true, name: LABEL[key], all: t.pages.join("\n\n"), pages: t.pages }
+  return t.pages ? { text: t.pages[page] ?? "", paged: true, name: LABEL[key], all: t.pages.join("\n\n"), pages: t.pages, aligned: t.pages_aligned }
                  : { text: t.markdown, paged: false, name: LABEL[key] };
 }
 function renderCompare() {
@@ -371,6 +448,7 @@ function renderCompare() {
     const unpaged = [L, R].filter(s => !s.paged).map(s => esc(s.name));
     note = `Whole document shown: ${unpaged.join(" and ")} ${unpaged.length > 1 ? "have" : "has"} no page split.`;
   }
+  for (const src of [L, R]) if (src.aligned && !docMode) note += ` ${esc(src.name)} returned ${src.aligned} of ${current.images.length} pages (pages without output are left out); its pages were matched to the document by their words.`;
   document.getElementById("c-img").innerHTML = `<img src="${current.images[page]}" alt="Page ${page + 1} of ${esc(current.name)}">`;
   document.getElementById("c-img-meta").textContent = `${current.name} · page ${page + 1}`;
   document.getElementById("c-left-name").textContent = L.name; document.getElementById("c-right-name").textContent = R.name;
@@ -403,9 +481,145 @@ cDoc.addEventListener("change", loadDoc);
 document.getElementById("c-prev").addEventListener("click", () => { if (+cPage.value > 0) { cPage.value = +cPage.value - 1; renderCompare(); } });
 document.getElementById("c-next").addEventListener("click", () => { if (+cPage.value < current.images.length - 1) { cPage.value = +cPage.value + 1; renderCompare(); } });
 
+// ---------------------------------------------------------------- engine x layout matrix
+function matrix() {
+  if (!C.matrix) return;
+  document.getElementById("matrix-card").hidden = false;
+  const cells = C.matrix, present = cells.filter(c => TOOLS.some(t => t.id === c.id));
+  const rows = [...new Set(cells.map(c => c.engine))], cols = [...new Set(cells.map(c => c.layout))];
+  const common = S.docs.filter(d => present.length && present.every(c => d.tools[c.id]?.status === "ok"));
+  const synth = common.filter(d => d.synthetic), real = common.filter(d => !d.synthetic && d.text_layer_pages > 0);
+  const missing = cells.filter(c => !present.includes(c)).map(c => esc(c.label));
+  document.getElementById("matrix-note").innerHTML =
+    `Each grid: OCR engine (rows) × layout model (columns), plugin fixes applied. Scores are means over the ${common.length} documents that every configuration shown here converted (${synth.length} synthetic, ${real.length} with a text layer${refDocs.length ? `, ${common.filter(d => d.reference).length} with a reference transcription` : ""}). Darker = better, for times too (the fastest cell is darkest).` +
+    (missing.length ? ` <b>No results yet:</b> ${missing.join(", ")}.` : "");
+  const emptyPages = e => e?.empty_text_pages ? e.empty_text_pages.layer.length + e.empty_text_pages.scan.length : null;
+  const metrics = [
+    { label: "Ground-truth body F1", note: "synthetic", docs: synth, value: e => e.gt?.body_f1 },
+    { label: "Scanned page text", note: "synthetic, recall", docs: synth, value: e => e.gt?.sources?.scan_text },
+    { label: "Text in embedded images", note: "synthetic, recall", docs: synth, value: e => e.gt?.sources?.bitmap_text },
+    { label: "Tables", note: "synthetic, cells in the right row", docs: synth, value: e => e.gt?.tables },
+    { label: "Headings", note: "synthetic", docs: synth, value: e => e.gt?.headings },
+    { label: "Text-layer recall", note: "real documents", docs: real, value: e => e.layer?.recall },
+    { label: "Text-layer precision", note: "real documents", docs: real, value: e => e.layer?.precision },
+    ...refDocs.map(d => ({ label: `Reference recall: ${d.name}`, note: d.reference.description || "reference transcription", docs: common.filter(x => x.id === d.id), value: e => e.ref?.recall })),
+    { label: "Total time", note: "server-side, seconds", docs: common, agg: "sum", kind: "time", value: e => e.seconds },
+    { label: "Median time per page", note: "seconds", docs: common, agg: "median", kind: "time", value: (e, d) => e.seconds / d.pages, digits: 2 },
+    { label: "Pages with text that came out empty", note: "count", docs: common, agg: "sum", kind: "count", value: e => emptyPages(e) },
+  ];
+  document.getElementById("matrix").innerHTML = metrics.map(m => {
+    const val = c => {
+      if (!present.includes(c) || !m.docs.length) return null;
+      const vs = m.docs.map(d => m.value(d.tools[c.id], d)).filter(v => v != null);
+      if (!vs.length) return null;
+      return m.agg === "sum" ? vs.reduce((a, b) => a + b, 0) : m.agg === "median" ? median(vs) : mean(vs);
+    };
+    const values = new Map(cells.map(c => [c, val(c)]));
+    const known = [...values.values()].filter(v => v != null);
+    const fastest = Math.min(...known);
+    const shade = v => v == null || m.kind === "count" ? null : m.kind === "time" ? (v > 0 ? fastest / v : 1) : v;
+    const show = v => v == null ? "–" : m.kind === "time" ? fmt(v, m.digits ?? 1) + " s" : m.kind === "count" ? String(v) : fmt(v, 2);
+    const cell = (engine, layout) => {
+      const c = cells.find(x => x.engine === engine && x.layout === layout);
+      if (!c) return `<td class="h">–</td>`;
+      if (!present.includes(c)) return `<td class="h" title="${esc(c.label)}: no results yet">not run</td>`;
+      const v = values.get(c);
+      return `<td class="h" style="${heat(shade(v))}" title="${esc(c.label)}: ${show(v)} over ${m.docs.length} document(s)">${show(v)}</td>`;
+    };
+    return `<div class="card"><h3>${esc(m.label)}</h3><p class="note">${esc(m.note)}</p><table class="heat"><thead><tr><th></th>${cols.map(l => `<th class="num">${esc(l)}</th>`).join("")}</tr></thead><tbody>` +
+      rows.map(r => `<tr><td>${esc(r)}</td>${cols.map(l => cell(r, l)).join("")}</tr>`).join("") + `</tbody></table></div>`;
+  }).join("");
+}
+
+// ---------------------------------------------------------------- released vs fixed plugin
+function pluginTab() {
+  if (!C.pairs) return;
+  document.querySelector('nav button[data-tab="plugin"]').hidden = false;
+  const emptyCount = (e, kind) => e?.empty_text_pages ? e.empty_text_pages[kind].length : null;
+  const sum = a => a.filter(v => v != null).reduce((x, y) => x + y, 0);
+  let h = `<table><thead><tr><th>Configuration</th><th class="num">Documents</th><th class="num">Text-layer pages</th><th class="num">… empty</th><th class="num">Scanned / photo pages</th><th class="num">… empty</th><th class="num">Documents with empty pages</th><th class="num">Page split shorter than document</th></tr></thead><tbody>`;
+  for (const t of TOOLS) {
+    const docs = S.docs.filter(d => d.tools[t.id]?.status === "ok");
+    const withEmpty = docs.filter(d => emptyCount(d.tools[t.id], "layer") + emptyCount(d.tools[t.id], "scan") > 0);
+    const short = docs.filter(d => d.tools[t.id].page_split != null && d.tools[t.id].page_split < d.pages);
+    const le = sum(docs.map(d => emptyCount(d.tools[t.id], "layer"))), se = sum(docs.map(d => emptyCount(d.tools[t.id], "scan")));
+    h += `<tr><td>${esc(t.label)}</td><td class="num">${docs.length}</td><td class="num">${sum(docs.map(d => d.text_layer_pages))}</td>
+      <td class="num ${le ? "fail" : ""}">${le}</td><td class="num">${sum(docs.map(d => d.scan_text_pages))}</td><td class="num ${se ? "fail" : ""}">${se}</td>
+      <td class="num" title="${esc(withEmpty.map(d => d.name).join(", "))}">${withEmpty.length}</td>
+      <td class="num" title="${esc(short.map(d => `${d.name}: ${d.tools[t.id].page_split} of ${d.pages}`).join(", "))}">${short.length}</td></tr>`;
+  }
+  document.getElementById("empty-table").innerHTML = h + "</tbody></table>";
+
+  const scoreOf = (d, e) => d.synthetic ? ["GT F1", e?.gt?.body_f1] : d.reference ? ["ref. recall", e?.ref?.recall] : ["layer recall", e?.layer?.recall];
+  const pages = e => e?.empty_text_pages ? [...e.empty_text_pages.layer, ...e.empty_text_pages.scan].sort((a, b) => a - b) : [];
+  const pageList = p => p.length ? (p.length > 8 ? p.slice(0, 8).join(", ") + ` … (${p.length})` : p.join(", ")) : "none";
+  document.getElementById("pairs").innerHTML = C.pairs.map((p, i) => {
+    const rel = TOOLS.find(t => t.id === p.released), fix = TOOLS.find(t => t.id === p.fixed);
+    const head = `<div class="card pair"><h2>${esc(p.label)}: plugin 0.2.3 (released) vs fixed</h2>`;
+    if (!rel || !fix) return head + `<p class="note">No results yet for ${esc([!rel && p.released, !fix && p.fixed].filter(Boolean).join(" and "))}.</p></div>`;
+    const docs = S.docs.filter(d => d.tools[p.released]?.status === "ok" && d.tools[p.fixed]?.status === "ok");
+    const rows = docs.map(d => {
+      const a = d.tools[p.released], b = d.tools[p.fixed];
+      const [kind, sa] = scoreOf(d, a), [, sb] = scoreOf(d, b);
+      const changed = pages(a).join() !== pages(b).join() || Math.abs(a.words - b.words) > Math.max(5, 0.01 * Math.max(a.words, b.words));
+      return { d, a, b, kind, sa, sb, changed };
+    });
+    const shown = rows.filter(r => r.changed);
+    const totals = [p.released, p.fixed].map(id => sum(docs.map(d => pages(d.tools[id]).length)));
+    let t = `<p class="note">${docs.length} documents converted by both. Pages with text that came out empty: <b>${totals[0]}</b> released, <b>${totals[1]}</b> fixed. ${shown.length} documents differ in empty pages or by more than 1 % of their words; ${docs.length - shown.length} are the same and hidden. Click a row to compare the two outputs.</p>`;
+    t += `<div class="scroll"><table><thead><tr><th>Document</th><th class="num">Pages</th><th>Empty pages, released</th><th>Empty pages, fixed</th><th class="num">Words, released</th><th class="num">Words, fixed</th><th class="num">Score, released</th><th class="num">Score, fixed</th></tr></thead><tbody>`;
+    for (const r of shown.sort((x, y) => (pages(y.a).length - pages(y.b).length) - (pages(x.a).length - pages(x.b).length) || (y.b.words - y.a.words) - (x.b.words - x.a.words))) {
+      t += `<tr class="click" data-doc="${esc(r.d.id)}" data-pair="${i}"><td>${esc(r.d.name)}</td><td class="num">${r.d.pages}</td>
+        <td class="${pages(r.a).length ? "fail" : ""}">${pageList(pages(r.a))}</td><td class="${pages(r.b).length ? "fail" : ""}">${pageList(pages(r.b))}</td>
+        <td class="num">${r.a.words}</td><td class="num">${r.b.words}</td>
+        <td class="num" style="${heat(r.sa)}" title="${r.kind}">${fmt(r.sa, 2)}</td><td class="num" style="${heat(r.sb)}" title="${r.kind}">${fmt(r.sb, 2)}</td></tr>`;
+    }
+    return head + t + `</tbody></table></div></div>`;
+  }).join("");
+  document.querySelectorAll("#pairs tr.click").forEach(tr => tr.addEventListener("click", () => {
+    const p = C.pairs[+tr.dataset.pair]; openCompare(tr.dataset.doc, p.released, p.fixed);
+  }));
+}
+
+// ---------------------------------------------------------------- words not in the reference
+function extraTab() {
+  const docs = S.docs.filter(d => TOOLS.some(t => d.tools[t.id]?.extra_words));
+  if (!C.extra_words || !docs.length) return;
+  document.querySelector('nav button[data-tab="extra"]').hidden = false;
+  const share = x => x?.total ? x.extra / x.total : null;
+  heatTable(document.getElementById("extra-heat"), docs.map(d => ({ key: d.id, label: d.name.length > 22 ? d.name.slice(0, 20) + "…" : d.name, title: d.name, format: pct, invert: true })),
+    TOOLS.map(t => ({ label: t.label, values: Object.fromEntries(docs.map(d => [d.id, share(d.tools[t.id]?.extra_words)])) })));
+  const xDoc = document.getElementById("x-doc");
+  xDoc.innerHTML = docs.map(d => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join("");
+  const preferred = docs.find(d => /synthetic_scan/.test(d.name));
+  if (preferred) xDoc.value = preferred.id;
+  const chip = ([w, n, close]) => `<span class="chip">${esc(w)}${n > 1 ? ` <small>×${n}</small>` : ""}${close ? ` <small>≈ ${esc(close)}</small>` : ""}</span>`;
+  const draw = () => {
+    const d = docs.find(x => x.id === xDoc.value);
+    document.getElementById("extra-lists").innerHTML = TOOLS.filter(t => d.tools[t.id]).map(t => {
+      const e = d.tools[t.id], x = e.extra_words;
+      if (!x) return `<div class="card"><h3>${esc(t.label)}</h3><p class="note">${e.status === "ok" ? "no output" : "failed: " + esc(e.error)}</p></div>`;
+      const far = x.words.filter(w => !w[2]), near = x.words.filter(w => w[2]);
+      return `<div class="card"><h3>${esc(t.label)}</h3><p class="note">${x.extra} of ${x.total} output words (${pct(share(x))}) are not in the reference. <a href="#" data-open="${esc(t.id)}">Compare with the reference</a></p>
+        <b>No close match</b> <span class="note">(made up, or read from elsewhere on the page)</span><div class="chips">${far.map(chip).join("") || '<span class="note">none</span>'}</div>
+        <b>Close to a reference word</b> <span class="note">(misreadings)</span><div class="chips">${near.map(chip).join("") || '<span class="note">none</span>'}</div></div>`;
+    }).join("");
+    document.querySelectorAll("#extra-lists a[data-open]").forEach(a => a.addEventListener("click", ev => {
+      ev.preventDefault(); openCompare(d.id, d.synthetic ? "__gt" : "__ref", a.dataset.open);
+    }));
+  };
+  xDoc.addEventListener("change", draw);
+  document.querySelectorAll("#extra-heat th").forEach((th, i) => { if (i > 0) { th.style.cursor = "pointer"; th.addEventListener("click", () => { xDoc.value = docs[i - 1].id; draw(); }); } });
+  draw();
+}
+
 // ---------------------------------------------------------------- method
 function method() {
   const setups = TOOLS.map(t => `<li><b>${esc(t.label)}</b>: ${esc(JSON.stringify(t.setup))}</li>`).join("");
+  if (C.method) {
+    document.getElementById("method").innerHTML = `<h2>How the numbers are made</h2><ul>${C.method.map(m => `<li>${m}</li>`).join("")}</ul><h3>Settings</h3><ul>${setups}</ul>`;
+    return;
+  }
   document.getElementById("method").innerHTML = `<h2>How the numbers are made</h2>
   <ul>
     <li><b>Timing</b>: wall time per document with models already loaded (one warm-up conversion first). docling variants are measured through the docling-serve async API (upload to result download); Jina through its hosted API (includes upload and network). All local tools ran one after another on the same RTX 4090.</li>
@@ -417,10 +631,10 @@ function method() {
 }
 
 // ---------------------------------------------------------------- init
-overview(); docsTable(); method();
+overview(); docsTable(); method(); pluginTab(); extraTab();
 cDoc.innerHTML = S.docs.map(d => `<option value="${esc(d.id)}">${esc(d.name)} (${d.pages} p.)</option>`).join("");
 loadDoc();
-try { const t = localStorage.getItem("tab"); if (t) showTab(t); } catch (e) {}
+try { const t = localStorage.getItem("tab"); if (t && document.querySelector(`nav button[data-tab="${t}"]:not([hidden])`)) showTab(t); } catch (e) {}
 </script>
 </body>
 </html>

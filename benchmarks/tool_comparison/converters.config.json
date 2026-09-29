@@ -1,0 +1,53 @@
+{
+  "assessment": "assessment.json",
+  "compare": {
+    "left": "docling-gpu-ocr-noshape",
+    "right": "marker"
+  },
+  "docs": [
+    "../../../test-docs",
+    "synthetic"
+  ],
+  "heading": "PDF \u2192 Markdown converter comparison",
+  "method": [
+    "<b>Timing</b>: wall time per document with models already loaded (one warm-up conversion first). docling variants are measured through the docling-serve async API (upload to result download); Jina through its hosted API (includes upload and network). All local tools ran one after another on the same RTX 4090.",
+    "<b>Synthetic documents</b>: generated with exact ground truth. <i>Body F1</i> compares the words of the output with the ground-truth markdown; <i>Headings</i> checks that ground-truth headings appear as markdown headings; <i>Tables</i> checks that each ground-truth table row's cells appear together in one output table row; <i>Order</i> compares word order; <i>Noise</i> is the share of output words that appear nowhere in the document. The text-source table tags every snippet by how it is stored in the PDF (real text, vector outlines, embedded image, scan).",
+    "<b>Real documents</b>: there is no ground truth, so outputs are compared with the PDF's own text layer (pypdfium2) on pages that have one. This rewards complete text, not structure: tools that dump the PDF text as is (Jina, markitdown) score high here even when tables and headings are lost. Page headers/footers count as reference text although docling deliberately leaves them out, and some PDFs carry hidden duplicate text (CELEX stamps every page up to three times), which lowers every tool's recall.",
+    "<b>Compare tab</b>: word-level diff of two outputs. Tools without a page split (markitdown, Jina) are compared on the whole document."
+  ],
+  "noun": "converters",
+  "results": "results",
+  "template": "dashboard.html",
+  "time": "wall",
+  "title": "PDF Converter Comparison",
+  "tools": [
+    {
+      "id": "docling-today",
+      "label": "docling (today)"
+    },
+    {
+      "id": "docling-gpu-ocr",
+      "label": "docling + GPU OCR"
+    },
+    {
+      "id": "docling-gpu-ocr-noshape",
+      "label": "docling + GPU OCR + shape patch"
+    },
+    {
+      "id": "marker",
+      "label": "marker"
+    },
+    {
+      "id": "doctr",
+      "label": "docTR"
+    },
+    {
+      "id": "markitdown",
+      "label": "markitdown"
+    },
+    {
+      "id": "jina",
+      "label": "Jina Reader"
+    }
+  ]
+}

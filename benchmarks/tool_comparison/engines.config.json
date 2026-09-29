@@ -1,0 +1,87 @@
+{
+  "assessment": "engines.assessment.json",
+  "compare": {
+    "left": "fixed-rapidocr-pp",
+    "right": "fixed-glm-pp"
+  },
+  "docs": [
+    "../../../test-docs",
+    "synthetic",
+    "../../data/ocr.png"
+  ],
+  "extra_words": true,
+  "heading": "OCR engine \u00d7 layout model comparison in docling-serve",
+  "matrix": [
+    "fixed-rapidocr",
+    "fixed-rapidocr-pp",
+    "fixed-glm",
+    "fixed-glm-pp"
+  ],
+  "method": [
+    "<b>Setup</b>: every configuration runs in docling-serve v1.35.0 on the same RTX 4090 with the same options (table_mode accurate, ocr_lang de, pdf_backend docling_parse, markdown with image placeholders, a page-break placeholder to split pages). Only the OCR engine and the layout model change. RapidOCR runs on onnxruntime GPU with the shape patch active; GLM-OCR is the zai-org/GLM-OCR vision-language model served by vLLM 0.29 and called per region.",
+    "<b>Plugin versions</b>: \u201cfixed\u201d is docling-pp-doc-layout 0.2.4, which returns the raw layout clusters so docling post-processes them after OCR. The released 0.2.3 dropped every layout region without PDF text before OCR ran, so scanned pages and photos came out empty with region-based OCR.",
+    "<b>Timing</b>: server-side conversion time reported by docling-serve (<code>processing_time</code>), models already loaded; wall time (upload to result download) where the server did not report it. For GLM-OCR this includes the calls to the vLLM server.",
+    "<b>Synthetic documents</b>: generated with exact ground truth. <i>Body F1</i> compares the words of the output with the ground-truth markdown; <i>Headings</i>, <i>Tables</i>, <i>Order</i> and <i>Noise</i> as in the converter comparison. The text-source table tags every snippet by how it is stored in the PDF (real text, vector outlines, embedded image, scan).",
+    "<b>Real documents</b>: compared with the PDF's own text layer (pypdfium2) on pages that have one. Recall below 1 means missing text, precision below 1 means extra words (OCR of images, noise, duplicates).",
+    "<b>Reference transcriptions</b>: the handwritten note (ocr.png) and the phone photo (PXL_\u2026jpg) have no text layer; they are scored against hand-made transcriptions in <code>references.json</code>.",
+    "<b>Empty pages</b>: a page has text when its text layer has at least 20 words or when any configuration read at least 20 words from it (scans, photos). It counts as empty for a configuration that returned fewer than 5 words for it. The released plugin leaves empty pages out of the markdown altogether, so its page split is shorter than the document; those outputs are aligned to the pages by word overlap with the text layer and the other configurations.",
+    "<b>Words not in the reference</b>: output words that appear nowhere in the ground truth (synthetic documents) or the reference transcription. Words with a close match in the reference (similarity \u2265 0.7) are likely misreadings; the others are text the engine made up or read from elsewhere on the page."
+  ],
+  "noun": "configurations",
+  "pairs": [
+    {
+      "fixed": "fixed-rapidocr-pp",
+      "label": "RapidOCR + PP-DocLayout-V3",
+      "released": "released-rapidocr-pp"
+    },
+    {
+      "fixed": "fixed-glm-pp",
+      "label": "GLM-OCR + PP-DocLayout-V3",
+      "released": "released-glm-pp"
+    }
+  ],
+  "references": "references.json",
+  "results": "results/engines",
+  "template": "dashboard.html",
+  "time": "server",
+  "title": "OCR Engine \u00d7 Layout Comparison",
+  "tool_noun": "configuration",
+  "tools": [
+    {
+      "engine": "RapidOCR",
+      "id": "fixed-rapidocr",
+      "label": "RapidOCR + default layout",
+      "layout": "docling default"
+    },
+    {
+      "engine": "RapidOCR",
+      "id": "fixed-rapidocr-pp",
+      "label": "RapidOCR + PP-DocLayout-V3",
+      "layout": "PP-DocLayout-V3"
+    },
+    {
+      "engine": "GLM-OCR",
+      "id": "fixed-glm",
+      "label": "GLM-OCR + default layout",
+      "layout": "docling default"
+    },
+    {
+      "engine": "GLM-OCR",
+      "id": "fixed-glm-pp",
+      "label": "GLM-OCR + PP-DocLayout-V3",
+      "layout": "PP-DocLayout-V3"
+    },
+    {
+      "engine": "RapidOCR",
+      "id": "released-rapidocr-pp",
+      "label": "RapidOCR + PP-DocLayout-V3 (plugin 0.2.3, released)",
+      "layout": "PP-DocLayout-V3"
+    },
+    {
+      "engine": "GLM-OCR",
+      "id": "released-glm-pp",
+      "label": "GLM-OCR + PP-DocLayout-V3 (plugin 0.2.3, released)",
+      "layout": "PP-DocLayout-V3"
+    }
+  ]
+}

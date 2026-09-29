@@ -427,6 +427,43 @@ python3 -m http.server -d benchmarks/tool_comparison/results/dashboard 8765
 
 Note that the Jina runner uploads every document to r.jina.ai.
 
+`build_dashboard.py` reads what to compare from a JSON config: tools and labels, results
+folder, documents, assessment file and page texts. With no `--config` it uses
+`converters.config.json`, which builds the dashboard above.
+
+### OCR engine × layout model
+
+`engines.config.json` builds a second dashboard with the same page: RapidOCR and GLM-OCR,
+each with docling's default layout model and with PP-DocLayout-V3, all inside docling-serve
+with otherwise identical options. It also compares the released docling-pp-doc-layout 0.2.3
+with the fixed plugin. On top of the converter views it shows:
+
+- an engine × layout grid for each key metric (ground-truth F1, scanned text, text in
+  images, tables, headings, text-layer recall and precision, reference recall, time)
+- a "Released vs fixed" tab: pages with text that came out empty, and the documents where
+  the two plugin versions differ
+- a "Words not in reference" tab: output words that are missing from the ground truth or
+  the reference transcription, split into misreadings and words with no close match (useful
+  for GLM-OCR, which is a VLM)
+
+The handwritten note (`data/ocr.png`) and the phone photo in the test documents have no
+text layer. They are scored against the transcriptions in
+`benchmarks/tool_comparison/references.json`. Put the pros and cons into
+`engines.assessment.json` (same format as `assessment.json`).
+
+Each configuration is a `run_docling.py` run whose `--tool` matches an id in the config
+(`fixed-rapidocr`, `fixed-rapidocr-pp`, `fixed-glm`, `fixed-glm-pp`,
+`released-rapidocr-pp`, `released-glm-pp`), with `--results` pointing at one shared
+folder. Then build and serve:
+
+```bash
+cd benchmarks/tool_comparison
+uv run --script build_dashboard.py --config engines.config.json --results <engine results>
+python3 -m http.server -d <engine results>/dashboard 8766
+```
+
+Configurations or documents without results are left out; grid cells show "not run".
+
 ## Upgrading docling-serve
 
 Our image changes upstream in a few places (plugins, GPU OCR, the shape patch). Check each
