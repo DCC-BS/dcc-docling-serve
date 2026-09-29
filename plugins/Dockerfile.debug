@@ -1,10 +1,11 @@
 # Dockerfile.debug — build docling-serve with plugins installed from local source.
 #
-# Differences from Dockerfile.docling-serve:
-#   - Copies docling-glm-ocr and docling-pp-doc-layout from the repo instead
-#     of pulling published packages from PyPI.
-#   - Build context MUST be the repo root (parent of dcc-docling-serve/) so that
-#     COPY can reach sibling directories.
+# Same image as Dockerfile.docling-serve (GPU OCR, shape patch, log muting), except:
+#   - docling-glm-ocr and docling-pp-doc-layout are installed from the sibling
+#     repositories instead of PyPI.
+#   - The build context MUST be the repo root (parent of dcc-docling-serve/) so
+#     COPY can reach those sibling directories.
+# Keep the remaining steps in sync with Dockerfile.docling-serve.
 #
 # Used by compose.debug.yaml. Rebuild after every source change:
 #   docker compose -f compose.yaml -f compose.debug.yaml build --no-cache
@@ -13,19 +14,32 @@ ARG DOCLING_SERVE_IMAGE=ghcr.io/docling-project/docling-serve
 ARG DOCLING_SERVE_TAG=latest
 FROM ${DOCLING_SERVE_IMAGE}:${DOCLING_SERVE_TAG}
 
+# GPU images: run RapidOCR's onnxruntime on the GPU instead of the CPU (no-op on CPU images)
+ARG ONNXRUNTIME_CUDA12_INDEX=https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/
+COPY dcc-docling-serve/plugins/install_onnxruntime_gpu.sh /tmp/install_onnxruntime_gpu.sh
+RUN ONNXRUNTIME_CUDA12_INDEX="${ONNXRUNTIME_CUDA12_INDEX}" sh /tmp/install_onnxruntime_gpu.sh install
+USER 0
+RUN sh /tmp/install_onnxruntime_gpu.sh register-libs
+# Back to the upstream image's user
+USER 1001
+
 RUN pip install --no-cache-dir "huggingface-hub>=1.3.0"
 
-# Copy plugin source trees from the repo root build context
+# Plugins from the local source trees (repo root build context), no PyPI lookup
 COPY docling-glm-ocr /src/docling-glm-ocr
 COPY docling-pp-doc-layout /src/docling-pp-doc-layout
-
-# Install from source — no PyPI lookup
 RUN pip install --no-cache-dir --no-deps \
     /src/docling-glm-ocr \
     /src/docling-pp-doc-layout
 
-# Mute health-probe log records (same as production)
+# Mute health-probe log records (site-packages drop-in, no upstream file touched)
 COPY dcc-docling-serve/plugins/mute_health_logs.py /tmp/mute_health_logs.py
 RUN SP="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
     && cp /tmp/mute_health_logs.py "$SP/dcc_mute_health_logs.py" \
     && printf 'import dcc_mute_health_logs\n' > "$SP/zz_dcc_mute_health_logs.pth"
+
+# Vector shapes no longer send programmatic PDF text to OCR (DCC_OCR_IGNORE_SHAPES=0 restores docling's behaviour)
+COPY dcc-docling-serve/plugins/ocr_ignore_shapes.py /tmp/ocr_ignore_shapes.py
+RUN SP="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
+    && cp /tmp/ocr_ignore_shapes.py "$SP/dcc_ocr_ignore_shapes.py" \
+    && printf 'import dcc_ocr_ignore_shapes\n' > "$SP/zz_dcc_ocr_ignore_shapes.pth"
