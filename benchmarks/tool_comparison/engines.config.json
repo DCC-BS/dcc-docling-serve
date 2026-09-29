@@ -15,7 +15,9 @@
     "fixed-rapidocr",
     "fixed-rapidocr-pp",
     "fixed-glm",
-    "fixed-glm-pp"
+    "fixed-glm-pp",
+    "fixed-rapidocr-pp-t03",
+    "fixed-glm-pp-t03"
   ],
   "method": [
     "<b>Setup</b>: every configuration runs in docling-serve v1.35.0 on the same RTX 4090 with the same options (table_mode accurate, ocr_lang de, pdf_backend docling_parse, markdown with image placeholders, a page-break placeholder to split pages). Only the OCR engine and the layout model change. RapidOCR runs on onnxruntime GPU with the shape patch active; GLM-OCR is the zai-org/GLM-OCR vision-language model served by vLLM 0.29 and called per region.",
@@ -70,6 +72,18 @@
       "id": "fixed-glm-pp",
       "label": "GLM-OCR + PP-DocLayout-V3",
       "layout": "PP-DocLayout-V3"
+    },
+    {
+      "engine": "RapidOCR",
+      "id": "fixed-rapidocr-pp-t03",
+      "label": "RapidOCR + PP-DocLayout-V3 (threshold 0.3)",
+      "layout": "PP-DocLayout-V3 @ 0.3"
+    },
+    {
+      "engine": "GLM-OCR",
+      "id": "fixed-glm-pp-t03",
+      "label": "GLM-OCR + PP-DocLayout-V3 (threshold 0.3)",
+      "layout": "PP-DocLayout-V3 @ 0.3"
     },
     {
       "engine": "RapidOCR",

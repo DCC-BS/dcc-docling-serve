@@ -62,6 +62,9 @@ services:
       DOCLING_SERVE_ALLOW_CUSTOM_LAYOUT_CONFIG: "true"
       # Offer the PP-DocLayout-V3 plugin as a layout preset (API: layout_preset, and in the UI)
       DOCLING_SERVE_CUSTOM_LAYOUT_PRESETS: '{"ppdoclayout-v3": {"kind": "ppdoclayout-v3"}}'
+      # PP-DocLayout-V3 detects handwriting on photos with only 0.3-0.4 confidence; at the plugin's default
+      # of 0.5 those regions are dropped and never OCR'd (README: PP-DocLayout-V3 layout)
+      PP_DOC_LAYOUT_CONFIDENCE_THRESHOLD: "${PP_DOC_LAYOUT_CONFIDENCE_THRESHOLD:-0.3}"
       DOCLING_SERVE_LOG_LEVEL: "${DOCLING_SERVE_LOG_LEVEL:-INFO}"
       GLMOCR_REMOTE_OCR_API_URL: http://vllm-glm-ocr:8000/v1/chat/completions
     depends_on:
