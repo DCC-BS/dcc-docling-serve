@@ -21,6 +21,17 @@ RUN pip install --no-cache-dir "huggingface-hub>=1.3.0" \
         "docling-glm-ocr==${DOCLING_GLM_OCR_VERSION}" \
         "docling-pp-doc-layout==${DOCLING_PP_DOC_LAYOUT_VERSION}"
 
+# Bake the PP-DocLayout-V3 weights into the image: the plugin loads them from disk instead of
+# fetching them from huggingface.co at every pipeline start (PP_DOC_LAYOUT_MODEL_NAME still overrides)
+ARG PP_DOC_LAYOUT_MODEL_REPO=PaddlePaddle/PP-DocLayoutV3_safetensors
+ARG PP_DOC_LAYOUT_MODEL_REVISION=e4f489dc536556fc1be02b973ba06756e0d4a2ac
+ENV PP_DOC_LAYOUT_MODEL_NAME=/opt/app-root/src/.cache/docling/models/PaddlePaddle--PP-DocLayoutV3_safetensors
+RUN python -c "import os, sys; from huggingface_hub import snapshot_download; \
+snapshot_download(sys.argv[1], revision=sys.argv[2], local_dir=os.environ['PP_DOC_LAYOUT_MODEL_NAME'], \
+allow_patterns=['*.json', '*.safetensors'])" "${PP_DOC_LAYOUT_MODEL_REPO}" "${PP_DOC_LAYOUT_MODEL_REVISION}" \
+    && rm -rf "${PP_DOC_LAYOUT_MODEL_NAME}/.cache" \
+    && python -c "import os; from transformers import AutoConfig; AutoConfig.from_pretrained(os.environ['PP_DOC_LAYOUT_MODEL_NAME'])"
+
 # Mute health-probe log records (site-packages drop-in, no upstream file touched)
 COPY mute_health_logs.py /tmp/mute_health_logs.py
 RUN SP="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \

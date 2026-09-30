@@ -195,7 +195,7 @@ always take precedence when using the Python SDK directly.
 
 | Variable | Description | Default |
 | --- | --- | --- |
-| `PP_DOC_LAYOUT_MODEL_NAME` | HuggingFace model repo ID | `PaddlePaddle/PP-DocLayoutV3_safetensors` |
+| `PP_DOC_LAYOUT_MODEL_NAME` | HuggingFace model repo ID or local folder | our image: the baked-in copy (see below); plugin: `PaddlePaddle/PP-DocLayoutV3_safetensors` |
 | `PP_DOC_LAYOUT_CONFIDENCE_THRESHOLD` | Minimum detection confidence (0.0–1.0) | `0.3` |
 | `PP_DOC_LAYOUT_BATCH_SIZE` | Batch size for layout inference | `8` |
 | `PP_DOC_LAYOUT_CREATE_ORPHAN_CLUSTERS` | Create clusters for orphaned elements (`true`/`false`) | `true` |
@@ -203,6 +203,12 @@ always take precedence when using the Python SDK directly.
 | `PP_DOC_LAYOUT_SKIP_CELL_ASSIGNMENT` | Skip table-cell assignment (`true`/`false`) | `false` |
 
 Boolean variables accept `true`, `1`, `yes` (case-insensitive) as truthy; anything else is `false`.
+
+Our image contains the PP-DocLayout-V3 weights (128 MB, pinned by `PP_DOC_LAYOUT_MODEL_REVISION` in
+`plugins/Dockerfile.docling-serve`) and points `PP_DOC_LAYOUT_MODEL_NAME` at them. Without them the plugin
+fetched the model from huggingface.co every time a pipeline was built, and downloaded it on every
+container start; now the worker runs without internet access. To update the weights, set the new
+commit of `PaddlePaddle/PP-DocLayoutV3_safetensors` as `PP_DOC_LAYOUT_MODEL_REVISION`.
 
 The threshold defaults to `0.3` since plugin 0.2.5 (it was `0.5`). docling only OCRs inside
 layout regions, and PP-DocLayout-V3 (trained on document pages) detects handwriting on phone
