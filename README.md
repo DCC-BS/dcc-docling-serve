@@ -34,13 +34,6 @@ The image pins both plugin versions (`DOCLING_GLM_OCR_VERSION` and
 PR when a new plugin version is released; merge it before dispatching the image build.
 Unpinned, the build's layer cache would keep shipping the old plugins.
 
-[docling-pp-ocrv6](https://github.com/DCC-BS/docling-pp-ocrv6) is not in the published
-image yet: `Dockerfile.debug` installs it from the sibling source tree, because the
-options that make it useful for marking a PDF -- `whole_page` and `return_word_box`,
-which `include_word_boxes` turns on to put every word OCR read into `word_boxes` --
-are not released. It moves to the
-pinned list above once they are.
-
 The docling-serve web UI at `/ui` is upstream's, unchanged. It lists both plugins
 among its OCR and layout choices.
 
