@@ -15,7 +15,7 @@ USER 1001
 # renovate: datasource=pypi depName=docling-glm-ocr
 ARG DOCLING_GLM_OCR_VERSION=0.5.2
 # renovate: datasource=pypi depName=docling-pp-doc-layout
-ARG DOCLING_PP_DOC_LAYOUT_VERSION=0.2.5
+ARG DOCLING_PP_DOC_LAYOUT_VERSION=0.2.6
 RUN pip install --no-cache-dir "huggingface-hub>=1.3.0" \
     && pip install --no-cache-dir --no-deps \
         "docling-glm-ocr==${DOCLING_GLM_OCR_VERSION}" \

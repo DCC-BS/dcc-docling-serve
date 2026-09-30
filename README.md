@@ -201,6 +201,7 @@ always take precedence when using the Python SDK directly.
 | `PP_DOC_LAYOUT_CREATE_ORPHAN_CLUSTERS` | Create clusters for orphaned elements (`true`/`false`) | `true` |
 | `PP_DOC_LAYOUT_KEEP_EMPTY_CLUSTERS` | Retain empty clusters in results (`true`/`false`) | `false` |
 | `PP_DOC_LAYOUT_SKIP_CELL_ASSIGNMENT` | Skip table-cell assignment (`true`/`false`) | `false` |
+| `PP_DOC_LAYOUT_LIST_DETECTION` | List-item detection: `rules`, `heron` or `off` (see Lists with PP-DocLayout-V3) | `rules` |
 
 Boolean variables accept `true`, `1`, `yes` (case-insensitive) as truthy; anything else is `false`.
 
@@ -500,6 +501,32 @@ python3 -m http.server -d <engine results>/dashboard 8766
 
 Configurations or documents without results are left out; grid cells show "not run".
 
+### Lists with PP-DocLayout-V3
+
+PP-DocLayout-V3 has no list-item class, so before plugin 0.2.6 docling produced no lists
+with it: bullet points came out as paragraphs starting with "·" (367 list items against
+Heron's 2'422 on the test documents). The plugin now detects list items after OCR from list
+markers, enumerator sequences and bullet marks OCR did not read
+(`PP_DOC_LAYOUT_LIST_DETECTION=rules`, the default), optionally with docling's Heron model
+as a second opinion (`heron`). Details in the plugin README.
+
+`benchmarks/list_eval/` holds the benchmark: `make_lists.py` generates list pages with exact
+ground truth (born-digital and scanned, with traps such as numbered headings, dates and
+amounts), `run_all.sh <image>` converts them and the test documents with Heron and with
+PP-DocLayout-V3 in each mode, `evaluate.py` scores them. Results with plugin 0.2.6:
+
+| Configuration | Born-digital R / P | Scanned R / P | Traps as list items | Bullet lines found | Time |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Heron (docling default) | 0.67 / 0.96 | 0.97 / 0.95 | 2 | 245 / 251 | 136 s |
+| PP-DocLayout-V3, `off` | 0 | 0 | 0 | 0 / 251 | 145 s |
+| PP-DocLayout-V3, `rules` | 1.00 / 1.00 | 0.86 / 1.00 | 0 | 231 / 251 | 145 s |
+| PP-DocLayout-V3, `heron` | 1.00 / 1.00 | 0.94 / 0.94 | 1 | 231 / 251 | 153 s |
+
+13 of the 20 bullet lines PP-DocLayout-V3 misses are the brochure's commission list, which it
+lays out as a picture (the text is in the JSON output, inside the picture). List detection
+runs inside docling's layout post-processing, which has no plugin interface yet; add a
+check to the upgrade list below that lists still appear.
+
 ## Upgrading docling-serve
 
 Our image changes upstream in a few places (plugins, GPU OCR, the shape patch). Check each
@@ -565,7 +592,11 @@ with the new tag). Build the image first (step 2) for the checks that use it.
    ```
 
 6. **Plugins.** Run the e2e tests against the stack (GLM-OCR via vLLM, PP-DocLayout-V3)
-   and convert a document in the web UI with both plugins selected.
+   and convert a document in the web UI with both plugins selected. Then check that
+   PP-DocLayout-V3 still produces lists: its list detection hooks into docling's layout
+   post-processing and switches itself off (warning "list detection is off" or "list
+   detection failed" in the logs) if docling changed it. `benchmarks/list_eval/run_all.sh
+   dcc-docling-serve-test:cu130` should show the `pp-rules` numbers from the table above.
 
 7. **Publish.** Push, then run the *Build docling-serve with layout and OCR plugins*
    workflow manually with `docling_serve_tag=v1.36.0`, and update the input's default in
