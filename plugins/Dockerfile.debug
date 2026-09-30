@@ -1,10 +1,8 @@
 # Dockerfile.debug — build docling-serve with plugins installed from local source.
 #
 # Same image as Dockerfile.docling-serve (GPU OCR, shape patch, log muting), except:
-#   - docling-glm-ocr, docling-pp-doc-layout and docling-pp-ocrv6 are installed
-#     from the sibling repositories instead of PyPI. PP-OCRv6 is only here:
-#     it moves to Dockerfile.docling-serve, pinned, once the word-box options
-#     (whole_page, return_word_box) are released.
+#   - docling-glm-ocr and docling-pp-doc-layout are installed from the sibling
+#     repositories instead of PyPI.
 #   - The build context MUST be the repo root (parent of dcc-docling-serve/) so
 #     COPY can reach those sibling directories.
 # Keep the remaining steps in sync with Dockerfile.docling-serve.
@@ -30,11 +28,9 @@ RUN pip install --no-cache-dir "huggingface-hub>=1.3.0"
 # Plugins from the local source trees (repo root build context), no PyPI lookup
 COPY docling-glm-ocr /src/docling-glm-ocr
 COPY docling-pp-doc-layout /src/docling-pp-doc-layout
-COPY docling-pp-ocrv6 /src/docling-pp-ocrv6
 RUN pip install --no-cache-dir --no-deps \
     /src/docling-glm-ocr \
-    /src/docling-pp-doc-layout \
-    /src/docling-pp-ocrv6
+    /src/docling-pp-doc-layout
 
 # Bake the PP-DocLayout-V3 weights into the image: the plugin loads them from disk instead of
 # fetching them from huggingface.co at every pipeline start (PP_DOC_LAYOUT_MODEL_NAME still overrides)

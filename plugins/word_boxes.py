@@ -17,10 +17,12 @@ and the page picture are dropped: they are large, and a word's text and box is
 all anyone asked for.
 
 The pipeline throws these cells away after assembly unless it is told to keep
-them, so the option also turns on ``generate_parsed_pages``. With PP-OCRv6 it
-also turns on ``whole_page`` and ``return_word_box``, so a scanned word is read
-whole and gets a box of its own; requests without the option keep the engine's
-defaults and its speed.
+them, so the option also turns on ``generate_parsed_pages``.
+
+The text layer measures its own words; OCR only reads lines. With RapidOCR the
+option also asks for a box per word, reads the whole page instead of the parts
+the layout found, and adds the words it read where the text layer draws none.
+Other engines give lines only, so their pages carry the text layer's words.
 
 Everything is off unless a request asks for it: the option defaults to false, no
 existing field changes, and a request that does not mention it is answered
@@ -182,21 +184,160 @@ def _patch_exportable(module) -> None:
     exportable.from_conversion_result = classmethod(from_conversion_result)
 
 
-#: OCR options that make an engine read single words whole (docling-pp-ocrv6).
-#: Off by default in the engine; set only for requests that ask for word boxes.
-WORD_BOX_OCR_OPTIONS = ("whole_page", "return_word_box")
+#: RapidOCR's own setting for a box per word. Set only on requests that ask for
+#: word boxes, it also tells the model below to read the whole page and keep
+#: the words.
+RAPIDOCR_WORD_BOXES = "Global.return_word_box"
 
 
 def _ocr_for_word_boxes(ocr_options):
-    """The request's OCR options, told to read every word whole and place it.
+    """The request's OCR options, told to place every word it reads.
 
-    Only engines that know these options get them, so other engines and a
-    server without the plugin are left as they are. docling-serve keeps one
-    converter per set of options, so requests without word boxes keep theirs.
+    Only RapidOCR is told: no other engine docling ships says where a single
+    word stands. docling-serve keeps one converter per set of options, so
+    requests without word boxes keep theirs and read as before.
     """
-    fields = getattr(type(ocr_options), "model_fields", {})
-    update = {name: True for name in WORD_BOX_OCR_OPTIONS if name in fields}
-    return ocr_options.model_copy(update=update) if update else ocr_options
+    if getattr(ocr_options, "kind", None) != "rapidocr":
+        return ocr_options
+    params = {**ocr_options.rapidocr_params, RAPIDOCR_WORD_BOXES: True}
+    return ocr_options.model_copy(update={"rapidocr_params": params})
+
+
+def _reads_words(model) -> bool:
+    return bool((getattr(model.options, "rapidocr_params", None) or {}).get(RAPIDOCR_WORD_BOXES))
+
+
+def _ocr_words(word_results, scale: float) -> list:
+    """The words RapidOCR read on a whole page, in the page's points.
+
+    RapidOCR answers per line, each word as its text, how sure it is and the
+    four corners it was read in. A page it read nothing on comes back as one
+    bare word, ``('', 1.0, None)``, not as a line of them; a word it could not
+    place comes without corners. Neither has a place to give. The caller
+    numbers the words, after those of the text layer.
+    """
+    from docling_core.types.doc import CoordOrigin
+    from docling_core.types.doc.page import BoundingRectangle, TextCell
+
+    words = []
+    for line in word_results or ():
+        if line and isinstance(line[0], str):
+            line = (line,)
+        for word in line:
+            if not isinstance(word, (tuple, list)) or len(word) != 3:
+                continue
+            text, confidence, corners = word
+            if corners is None or not str(text).strip():
+                continue
+            (x0, y0), (x1, y1), (x2, y2), (x3, y3) = ((x / scale, y / scale) for x, y in corners)
+            words.append(
+                TextCell(
+                    index=0,
+                    text=text,
+                    orig=text,
+                    confidence=confidence,
+                    from_ocr=True,
+                    rect=BoundingRectangle(
+                        r_x0=x0,
+                        r_y0=y0,
+                        r_x1=x1,
+                        r_y1=y1,
+                        r_x2=x2,
+                        r_y2=y2,
+                        r_x3=x3,
+                        r_y3=y3,
+                        coord_origin=CoordOrigin.TOPLEFT,
+                    ),
+                )
+            )
+    return words
+
+
+def _not_drawn(words: list, page) -> list:
+    """The words no word of the text layer is drawn on.
+
+    Read whole, a page is read where its text layer draws the words too, and
+    those are exact already. OCR reads a word in a box as tall as its line and
+    the text layer in one that hugs the ink, so they are the same word where
+    the OCR word's centre lies in a drawn one. Invisible text, the layer a
+    scanner lays under its picture, is not drawn: the words read in the
+    picture stay, as the only ones that show where the picture has them.
+    """
+    from docling_core.types.doc.page import PdfCellRenderingMode
+
+    height = page.size.height
+    drawn = [
+        cell.rect.to_top_left_origin(height).to_bounding_box()
+        for cell in page.parsed_page.word_cells
+        if not cell.from_ocr and getattr(cell, "rendering_mode", None) != PdfCellRenderingMode.INVISIBLE
+    ]
+
+    def on_drawn(word) -> bool:
+        box = word.rect.to_bounding_box()
+        x, y = (box.l + box.r) / 2, (box.t + box.b) / 2
+        return any(other.l <= x <= other.r and other.t <= y <= other.b for other in drawn)
+
+    return [word for word in words if not on_drawn(word)]
+
+
+class _Recording:
+    """RapidOCR's reader, keeping the words of what it read for the page."""
+
+    def __init__(self, reader) -> None:
+        self.reader = reader
+        self.word_results: list = []
+
+    def __call__(self, *args: Any, **kwargs: Any):
+        result = self.reader(*args, **kwargs)
+        self.word_results.append(getattr(result, "word_results", None))
+        return result
+
+
+def _patch_rapidocr(module) -> None:
+    """Let RapidOCR read the whole page and give each word its place."""
+    model = getattr(module, "RapidOcrModel", None)
+    original_rects = getattr(model, "get_ocr_rects", None)
+    original_call = model.__call__ if model is not None else None
+    if original_rects is None or original_call is None:
+        _logger.warning("docling has no RapidOcrModel to patch; RapidOCR reads no word boxes")
+        return
+    if getattr(original_call, "_dcc_reads_words", False):
+        return
+
+    @functools.wraps(original_rects)
+    def get_ocr_rects(self, page):
+        """The whole page, not the parts the layout found: a line of text cut
+        by a layout box is read only as far as the cut."""
+        if _reads_words(self) and page.size is not None:
+            from docling_core.types.doc import BoundingBox, CoordOrigin
+
+            size = page.size
+            return [BoundingBox(l=0, t=0, r=size.width, b=size.height, coord_origin=CoordOrigin.TOPLEFT)]
+        return original_rects(self, page)
+
+    @functools.wraps(original_call)
+    def call(self, conv_res, page_batch):
+        if not _reads_words(self) or getattr(self, "reader", None) is None:
+            yield from original_call(self, conv_res, page_batch)
+            return
+        if not isinstance(self.reader, _Recording):
+            self.reader = _Recording(self.reader)
+        for page in page_batch:
+            self.reader.word_results.clear()
+            for done in original_call(self, conv_res, [page]):
+                if done.parsed_page is not None and done.size is not None:
+                    cells = done.parsed_page.word_cells
+                    read = [word for results in self.reader.word_results for word in _ocr_words(results, self.scale)]
+                    words = _not_drawn(read, done)
+                    for index, word in enumerate(words):
+                        word.index = len(cells) + index
+                    done.parsed_page.word_cells = [*cells, *words]
+                    done.parsed_page.has_words = bool(done.parsed_page.word_cells)
+                yield done
+
+    call._dcc_reads_words = True
+    model.get_ocr_rects = get_ocr_rects
+    model.__call__ = call
 
 
 def _patch_manager(module) -> None:
@@ -249,6 +390,7 @@ PATCHES = {
     "docling_jobkit.datamodel.exportable_document": _patch_exportable,
     "docling_jobkit.convert.manager": _patch_manager,
     "docling_jobkit.convert.results": _patch_results,
+    "docling.models.stages.ocr.rapid_ocr_model": _patch_rapidocr,
 }
 
 
