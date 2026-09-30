@@ -34,6 +34,12 @@ The image pins both plugin versions (`DOCLING_GLM_OCR_VERSION` and
 PR when a new plugin version is released; merge it before dispatching the image build.
 Unpinned, the build's layer cache would keep shipping the old plugins.
 
+[docling-pp-ocrv6](https://github.com/DCC-BS/docling-pp-ocrv6) is not in the published
+image yet: `Dockerfile.debug` installs it from the sibling source tree, because the
+options that make it useful for marking a PDF -- `whole_page` and `return_word_box`,
+which put every word OCR read into `word_boxes` -- are not released. It moves to the
+pinned list above once they are.
+
 The docling-serve web UI at `/ui` is upstream's, unchanged. It lists both plugins
 among its OCR and layout choices.
 
@@ -305,6 +311,59 @@ filters sit on the `Logger` objects, not on handlers, so docling-serve's own
 | `DCC_MUTE_HEALTH_LOGS` | Set to `0`/`false`/`no` to disable muting | `1` |
 | `DCC_MUTE_HEALTH_PATHS` | Comma-separated request paths to mute in the access log | `/health` |
 
+## Convert API: the words of each page
+
+`DoclingDocument` carries regions and their text, not words. Whoever needs to
+know where a word stands — to highlight a hit, to anchor a citation, to mark a
+name for redaction — has to parse the file a second time on their own side, and
+run their own OCR for the pages that have no text layer. docling has measured
+all of it already and throws it away after assembly.
+
+The image ships `plugins/word_boxes.py`, installed into site-packages as
+`dcc_word_boxes.py` plus a `.pth` file, like the shape patch. It adds one
+request option and one field to the answer:
+
+| | |
+| --- | --- |
+| `include_word_boxes` | request option, boolean, defaults to `false` |
+| `word_boxes` | answer field, beside `md_content` and the other contents |
+
+`word_boxes` holds, per page number, docling's own `SegmentedPdfPage`:
+`word_cells` and `textline_cells`, each cell with its text, the rectangle it was
+read in (four corners, so text at an angle keeps its angle) and `from_ocr`.
+`char_cells` and the page picture are dropped — they are large, and a word's
+text and box is what was asked for.
+
+```bash
+curl -s -X POST localhost:5001/v1/convert/file \
+  -F files=@document.pdf -F to_formats=json -F pdf_backend=dlparse_v4 \
+  -F include_word_boxes=true |
+  python3 -c "import sys, json; pages = json.load(sys.stdin)['document']['word_boxes']; \
+    print({n: len(p['word_cells']) for n, p in pages.items()})"
+```
+
+Only a docling-parse backend measures a box per word: with `pdf_backend=pypdfium2`
+the answer carries the words OCR read and none of the ones the text layer draws.
+
+**What it changes.** The option sets `generate_parsed_pages` on the pipeline, so
+the cells survive assembly; `ExportableDocument` carries them off the conversion
+result and the export writes them into the answer. Nothing else moves: the option
+defaults to `false`, no existing field changes, and a request that does not ask
+for it is answered exactly as before — the field is then `null`, like the other
+contents that were not requested.
+
+Adding a field to a pydantic model is not enough on its own: a model that holds
+another one keeps a copy of its schema from when it was first built, so the
+models of those two modules are rebuilt as well. Without that the field validates
+but is dropped again on the way out.
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `DCC_WORD_BOXES` | Set to `0`/`false`/`no` to leave the API as upstream has it | `1` |
+
+If a wrapped docling function is missing (renamed upstream), the patch logs a
+warning and does nothing; conversions keep working, without the field.
+
 ## Python SDK usage
 
 The plugins can also be used directly with the docling Python SDK (without docling-serve). See `examples/convert_with_plugins.py`:
@@ -529,9 +588,9 @@ check to the upgrade list below that lists still appear.
 
 ## Upgrading docling-serve
 
-Our image changes upstream in a few places (plugins, GPU OCR, the shape patch). Check each
-one before publishing an image built on a new docling-serve version (replace `v1.36.0`
-with the new tag). Build the image first (step 2) for the checks that use it.
+Our image changes upstream in a few places (plugins, GPU OCR, the shape patch, the words
+of each page). Check each one before publishing an image built on a new docling-serve
+version (replace `v1.36.0` with the new tag). Build the image first (step 2) for the checks that use it.
 
 1. **Plugins in the web UI.** We ship upstream's UI unchanged. Check that the plugins
    still show up where the UI reads its choices from: `glm-ocr-remote` under the OCR
@@ -578,7 +637,21 @@ with the new tag). Build the image first (step 2) for the checks that use it.
      "import docling.models.base_ocr_model as m; print(getattr(m.BaseOcrModel._find_pdf_aware_layout_ocr_rects, '_dcc_ignores_shapes', False))"
    ```
 
-5. **Output unchanged, speed kept.** Run docling with and without the patch over the
+5. **Words of each page.** Check that the option and the field are still there,
+   and that they survive nesting (a stale holder schema drops the field on the way
+   out):
+
+   ```bash
+   docker run --rm --entrypoint python dcc-docling-serve-test:cu130 -c "
+   from docling.datamodel.service.responses import ConvertDocumentResponse, ExportDocumentResponse
+   from docling.datamodel.service.options import ConvertDocumentsOptions
+   print('option:', 'include_word_boxes' in ConvertDocumentsOptions.model_fields)
+   r = ConvertDocumentResponse(document=ExportDocumentResponse(filename='x'), status='success', processing_time=0.1)
+   r.document.word_boxes = {1: None}
+   print('answered:', 'word_boxes' in r.model_dump()['document'])"
+   ```
+
+6. **Output unchanged, speed kept.** Run docling with and without the patch over the
    test documents and compare; the script exits non-zero if any document is less than
    97 % similar. Then compare timings against the previous release:
 
@@ -591,14 +664,14 @@ with the new tag). Build the image first (step 2) for the checks that use it.
      --image custom-cu130=dcc-docling-serve-test:cu130
    ```
 
-6. **Plugins.** Run the e2e tests against the stack (GLM-OCR via vLLM, PP-DocLayout-V3)
+7. **Plugins.** Run the e2e tests against the stack (GLM-OCR via vLLM, PP-DocLayout-V3)
    and convert a document in the web UI with both plugins selected. Then check that
    PP-DocLayout-V3 still produces lists: its list detection hooks into docling's layout
    post-processing and switches itself off (warning "list detection is off" or "list
    detection failed" in the logs) if docling changed it. `benchmarks/list_eval/run_all.sh
    dcc-docling-serve-test:cu130` should show the `pp-rules` numbers from the table above.
 
-7. **Publish.** Push, then run the *Build docling-serve with layout and OCR plugins*
+8. **Publish.** Push, then run the *Build docling-serve with layout and OCR plugins*
    workflow manually with `docling_serve_tag=v1.36.0`, and update the input's default in
    `.github/workflows/cd.yml`.
 

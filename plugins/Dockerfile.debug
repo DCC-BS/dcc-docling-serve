@@ -1,8 +1,10 @@
 # Dockerfile.debug — build docling-serve with plugins installed from local source.
 #
 # Same image as Dockerfile.docling-serve (GPU OCR, shape patch, log muting), except:
-#   - docling-glm-ocr and docling-pp-doc-layout are installed from the sibling
-#     repositories instead of PyPI.
+#   - docling-glm-ocr, docling-pp-doc-layout and docling-pp-ocrv6 are installed
+#     from the sibling repositories instead of PyPI. PP-OCRv6 is only here:
+#     it moves to Dockerfile.docling-serve, pinned, once the word-box options
+#     (whole_page, return_word_box) are released.
 #   - The build context MUST be the repo root (parent of dcc-docling-serve/) so
 #     COPY can reach those sibling directories.
 # Keep the remaining steps in sync with Dockerfile.docling-serve.
@@ -28,9 +30,11 @@ RUN pip install --no-cache-dir "huggingface-hub>=1.3.0"
 # Plugins from the local source trees (repo root build context), no PyPI lookup
 COPY docling-glm-ocr /src/docling-glm-ocr
 COPY docling-pp-doc-layout /src/docling-pp-doc-layout
+COPY docling-pp-ocrv6 /src/docling-pp-ocrv6
 RUN pip install --no-cache-dir --no-deps \
     /src/docling-glm-ocr \
-    /src/docling-pp-doc-layout
+    /src/docling-pp-doc-layout \
+    /src/docling-pp-ocrv6
 
 # Bake the PP-DocLayout-V3 weights into the image: the plugin loads them from disk instead of
 # fetching them from huggingface.co at every pipeline start (PP_DOC_LAYOUT_MODEL_NAME still overrides)
@@ -54,3 +58,10 @@ COPY dcc-docling-serve/plugins/ocr_ignore_shapes.py /tmp/ocr_ignore_shapes.py
 RUN SP="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
     && cp /tmp/ocr_ignore_shapes.py "$SP/dcc_ocr_ignore_shapes.py" \
     && printf 'import dcc_ocr_ignore_shapes\n' > "$SP/zz_dcc_ocr_ignore_shapes.pth"
+
+# The convert API can hand back the words of each page and where they stand
+# (DCC_WORD_BOXES=0 leaves the API as upstream has it)
+COPY dcc-docling-serve/plugins/word_boxes.py /tmp/word_boxes.py
+RUN SP="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
+    && cp /tmp/word_boxes.py "$SP/dcc_word_boxes.py" \
+    && printf 'import dcc_word_boxes\n' > "$SP/zz_dcc_word_boxes.pth"
