@@ -162,7 +162,6 @@ def doc_styles(out: Path) -> None:
 # ---------------------------------------------------------------- document 2: two columns, dense lists
 def doc_columns(out: Path) -> None:
     d = Doc("lists_columns", out)
-    c = d.c
     colw = (W - 2 * MARGIN - 24) / 2
     y = heading(d, MARGIN, H - MARGIN, "Angebote im Überblick", 15)
     top = y
