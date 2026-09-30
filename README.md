@@ -37,7 +37,8 @@ Unpinned, the build's layer cache would keep shipping the old plugins.
 [docling-pp-ocrv6](https://github.com/DCC-BS/docling-pp-ocrv6) is not in the published
 image yet: `Dockerfile.debug` installs it from the sibling source tree, because the
 options that make it useful for marking a PDF -- `whole_page` and `return_word_box`,
-which put every word OCR read into `word_boxes` -- are not released. It moves to the
+which `include_word_boxes` turns on to put every word OCR read into `word_boxes` --
+are not released. It moves to the
 pinned list above once they are.
 
 The docling-serve web UI at `/ui` is upstream's, unchanged. It lists both plugins
@@ -351,6 +352,14 @@ result and the export writes them into the answer. Nothing else moves: the optio
 defaults to `false`, no existing field changes, and a request that does not ask
 for it is answered exactly as before — the field is then `null`, like the other
 contents that were not requested.
+
+**With PP-OCRv6** (`ocr_preset=pp-ocrv6`) the option also turns on the engine's
+`whole_page` and `return_word_box`: every page is read whole, so a line is not cut
+at a layout box, and each word OCR reads gets a box of its own. Both cost time and
+stay off for requests that do not ask for word boxes. docling-serve keeps one
+converter per set of options, so the two kinds of request do not share one; with
+more than two kinds in use, raise `DOCLING_SERVE_OPTIONS_CACHE_SIZE` (default 2) to
+avoid reloading models.
 
 Adding a field to a pydantic model is not enough on its own: a model that holds
 another one keeps a copy of its schema from when it was first built, so the

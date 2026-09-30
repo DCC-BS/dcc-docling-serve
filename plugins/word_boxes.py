@@ -17,7 +17,10 @@ and the page picture are dropped: they are large, and a word's text and box is
 all anyone asked for.
 
 The pipeline throws these cells away after assembly unless it is told to keep
-them, so the option also turns on ``generate_parsed_pages``.
+them, so the option also turns on ``generate_parsed_pages``. With PP-OCRv6 it
+also turns on ``whole_page`` and ``return_word_box``, so a scanned word is read
+whole and gets a box of its own; requests without the option keep the engine's
+defaults and its speed.
 
 Everything is off unless a request asks for it: the option defaults to false, no
 existing field changes, and a request that does not mention it is answered
@@ -179,6 +182,23 @@ def _patch_exportable(module) -> None:
     exportable.from_conversion_result = classmethod(from_conversion_result)
 
 
+#: OCR options that make an engine read single words whole (docling-pp-ocrv6).
+#: Off by default in the engine; set only for requests that ask for word boxes.
+WORD_BOX_OCR_OPTIONS = ("whole_page", "return_word_box")
+
+
+def _ocr_for_word_boxes(ocr_options):
+    """The request's OCR options, told to read every word whole and place it.
+
+    Only engines that know these options get them, so other engines and a
+    server without the plugin are left as they are. docling-serve keeps one
+    converter per set of options, so requests without word boxes keep theirs.
+    """
+    fields = getattr(type(ocr_options), "model_fields", {})
+    update = {name: True for name in WORD_BOX_OCR_OPTIONS if name in fields}
+    return ocr_options.model_copy(update=update) if update else ocr_options
+
+
 def _patch_manager(module) -> None:
     """Keep the parsed cells when a request asked for the words."""
     manager = getattr(module, "DoclingConverterManager", None)
@@ -194,6 +214,7 @@ def _patch_manager(module) -> None:
         options = original(self, request, artifacts_path)
         if getattr(request, OPTION, False):
             options.generate_parsed_pages = True
+            options.ocr_options = _ocr_for_word_boxes(options.ocr_options)
         return options
 
     parse_standard_pdf_opts._dcc_keeps_word_boxes = True
