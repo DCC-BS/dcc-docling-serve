@@ -1,8 +1,8 @@
 # Dockerfile.debug — build docling-serve with plugins installed from local source.
 #
 # Same image as Dockerfile.docling-serve (GPU OCR, shape patch, log muting), except:
-#   - docling-glm-ocr and docling-pp-doc-layout are installed from the sibling
-#     repositories instead of PyPI.
+#   - docling-glm-ocr, docling-pp-doc-layout and docling-pp-ocrv6 are installed
+#     from the sibling repositories instead of PyPI.
 #   - The build context MUST be the repo root (parent of dcc-docling-serve/) so
 #     COPY can reach those sibling directories.
 # Keep the remaining steps in sync with Dockerfile.docling-serve.
@@ -28,9 +28,11 @@ RUN pip install --no-cache-dir "huggingface-hub>=1.3.0"
 # Plugins from the local source trees (repo root build context), no PyPI lookup
 COPY docling-glm-ocr /src/docling-glm-ocr
 COPY docling-pp-doc-layout /src/docling-pp-doc-layout
+COPY docling-pp-ocrv6 /src/docling-pp-ocrv6
 RUN pip install --no-cache-dir --no-deps \
     /src/docling-glm-ocr \
-    /src/docling-pp-doc-layout
+    /src/docling-pp-doc-layout \
+    /src/docling-pp-ocrv6
 
 # Bake the PP-DocLayout-V3 weights into the image: the plugin loads them from disk instead of
 # fetching them from huggingface.co at every pipeline start (PP_DOC_LAYOUT_MODEL_NAME still overrides)
@@ -43,6 +45,22 @@ allow_patterns=['*.json', '*.safetensors'])" "${PP_DOC_LAYOUT_MODEL_REPO}" "${PP
     && rm -rf "${PP_DOC_LAYOUT_MODEL_NAME}/.cache" \
     && python -c "import os; from transformers import AutoConfig; AutoConfig.from_pretrained(os.environ['PP_DOC_LAYOUT_MODEL_NAME'])"
 
+# Bake the PP-OCRv6 models (medium, ~134 MB) where docling-serve's artifacts path points: the plugin
+# loads them from disk instead of fetching them from huggingface.co in every new pod. Pinned like the
+# layout weights, so a new upload to the repos changes nothing until the revisions here change.
+ARG PP_OCRV6_DET_REPO=PaddlePaddle/PP-OCRv6_medium_det_onnx
+ARG PP_OCRV6_DET_REVISION=61323801669c338b7891481ec7bac61ce31b576a
+ARG PP_OCRV6_REC_REPO=PaddlePaddle/PP-OCRv6_medium_rec_onnx
+ARG PP_OCRV6_REC_REVISION=50c7eacafc52fa7bcf4194e8cd08e46f8558504b
+RUN python -c "import os, sys; from pathlib import Path; from huggingface_hub import snapshot_download; \
+from docling_pp_ocrv6.model import PPOCRv6Model; \
+models = Path(os.environ['DOCLING_SERVE_ARTIFACTS_PATH']) / 'PPOCRv6'; \
+[snapshot_download(repo, revision=rev, local_dir=models / part, allow_patterns=['inference.onnx', 'inference.yml']) \
+ for part, repo, rev in (('det', sys.argv[1], sys.argv[2]), ('rec', sys.argv[3], sys.argv[4]))]; \
+PPOCRv6Model._ensure_rec_keys(models / 'rec')" \
+        "${PP_OCRV6_DET_REPO}" "${PP_OCRV6_DET_REVISION}" "${PP_OCRV6_REC_REPO}" "${PP_OCRV6_REC_REVISION}" \
+    && find "${DOCLING_SERVE_ARTIFACTS_PATH}/PPOCRv6" -name .cache -type d -prune -exec rm -rf {} +
+
 # Mute health-probe log records (site-packages drop-in, no upstream file touched)
 COPY dcc-docling-serve/plugins/mute_health_logs.py /tmp/mute_health_logs.py
 RUN SP="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
@@ -54,3 +72,10 @@ COPY dcc-docling-serve/plugins/ocr_ignore_shapes.py /tmp/ocr_ignore_shapes.py
 RUN SP="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
     && cp /tmp/ocr_ignore_shapes.py "$SP/dcc_ocr_ignore_shapes.py" \
     && printf 'import dcc_ocr_ignore_shapes\n' > "$SP/zz_dcc_ocr_ignore_shapes.pth"
+
+# The convert API can hand back the words of each page and where they stand
+# (DCC_WORD_BOXES=0 leaves the API as upstream has it)
+COPY dcc-docling-serve/plugins/word_boxes.py /tmp/word_boxes.py
+RUN SP="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
+    && cp /tmp/word_boxes.py "$SP/dcc_word_boxes.py" \
+    && printf 'import dcc_word_boxes\n' > "$SP/zz_dcc_word_boxes.pth"
