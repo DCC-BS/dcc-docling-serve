@@ -1,8 +1,8 @@
 # Dockerfile.debug — build docling-serve with plugins installed from local source.
 #
 # Same image as Dockerfile.docling-serve (GPU OCR, shape patch, log muting), except:
-#   - docling-glm-ocr and docling-pp-doc-layout are installed from the sibling
-#     repositories instead of PyPI.
+#   - docling-glm-ocr, docling-pp-doc-layout and docling-pp-ocrv6 are installed
+#     from the sibling repositories instead of PyPI.
 #   - The build context MUST be the repo root (parent of dcc-docling-serve/) so
 #     COPY can reach those sibling directories.
 # Keep the remaining steps in sync with Dockerfile.docling-serve.
@@ -28,9 +28,11 @@ RUN pip install --no-cache-dir "huggingface-hub>=1.3.0"
 # Plugins from the local source trees (repo root build context), no PyPI lookup
 COPY docling-glm-ocr /src/docling-glm-ocr
 COPY docling-pp-doc-layout /src/docling-pp-doc-layout
+COPY docling-pp-ocrv6 /src/docling-pp-ocrv6
 RUN pip install --no-cache-dir --no-deps \
     /src/docling-glm-ocr \
-    /src/docling-pp-doc-layout
+    /src/docling-pp-doc-layout \
+    /src/docling-pp-ocrv6
 
 # Bake the PP-DocLayout-V3 weights into the image: the plugin loads them from disk instead of
 # fetching them from huggingface.co at every pipeline start (PP_DOC_LAYOUT_MODEL_NAME still overrides)
@@ -42,6 +44,12 @@ snapshot_download(sys.argv[1], revision=sys.argv[2], local_dir=os.environ['PP_DO
 allow_patterns=['*.json', '*.safetensors'])" "${PP_DOC_LAYOUT_MODEL_REPO}" "${PP_DOC_LAYOUT_MODEL_REVISION}" \
     && rm -rf "${PP_DOC_LAYOUT_MODEL_NAME}/.cache" \
     && python -c "import os; from transformers import AutoConfig; AutoConfig.from_pretrained(os.environ['PP_DOC_LAYOUT_MODEL_NAME'])"
+
+# Bake the PP-OCRv6 models (medium, ~134 MB) where docling-serve's artifacts path points: the plugin
+# loads them from disk instead of fetching them from huggingface.co in every new pod
+RUN python -c "import os; from pathlib import Path; from docling_pp_ocrv6.model import PPOCRv6Model; \
+PPOCRv6Model.download_models(local_dir=Path(os.environ['DOCLING_SERVE_ARTIFACTS_PATH']) / 'PPOCRv6')" \
+    && find "${DOCLING_SERVE_ARTIFACTS_PATH}/PPOCRv6" -name .cache -type d -prune -exec rm -rf {} +
 
 # Mute health-probe log records (site-packages drop-in, no upstream file touched)
 COPY dcc-docling-serve/plugins/mute_health_logs.py /tmp/mute_health_logs.py

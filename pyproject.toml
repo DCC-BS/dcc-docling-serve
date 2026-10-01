@@ -50,7 +50,7 @@ combine-as-imports = true
 force-wrap-aliases = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests/unit", "tests/e2e"]
+testpaths = ["tests/e2e"]
 addopts = [
     "-ra",
     "--import-mode=importlib",

@@ -22,15 +22,18 @@ Each image is tagged with the upstream docling-serve version (e.g. `v2.3.0`) and
 | --- | --- | --- |
 | [docling-glm-ocr](https://github.com/DCC-BS/docling-glm-ocr) | `pip install docling-glm-ocr` | Remote OCR via a vLLM-hosted GLM-OCR model |
 | [docling-pp-doc-layout](https://github.com/DCC-BS/docling-pp-doc-layout) | `pip install docling-pp-doc-layout` | Local layout detection via PP-DocLayout-V3 |
+| [docling-pp-ocrv6](https://github.com/DCC-BS/docling-pp-ocrv6) | `pip install docling-pp-ocrv6` | Local OCR via PP-OCRv6 (medium), with a box per word |
 
 The plugins are selectable per-request through the standard docling-serve API:
 
 - **Layout** -- `layout_preset: "ppdoclayout-v3"` (preset defined in `compose.yaml`) or
   `layout_custom_config: { "kind": "ppdoclayout-v3" }`
-- **OCR** -- `ocr_preset: "glm-ocr-remote"`
+- **OCR** -- `ocr_preset: "glm-ocr-remote"` or `ocr_preset: "pp-ocrv6"`
 
-The image pins both plugin versions (`DOCLING_GLM_OCR_VERSION` and
-`DOCLING_PP_DOC_LAYOUT_VERSION` in `plugins/Dockerfile.docling-serve`). Renovate opens a
+The image pins the plugin versions (`DOCLING_GLM_OCR_VERSION`,
+`DOCLING_PP_DOC_LAYOUT_VERSION` and `DOCLING_PP_OCRV6_VERSION` in
+`plugins/Dockerfile.docling-serve`) and bakes the PP-DocLayout-V3 and PP-OCRv6 models
+into it, so no pod downloads them. Renovate opens a
 PR when a new plugin version is released; merge it before dispatching the image build.
 Unpinned, the build's layer cache would keep shipping the old plugins.
 
@@ -346,19 +349,15 @@ defaults to `false`, no existing field changes, and a request that does not ask
 for it is answered exactly as before — the field is then `null`, like the other
 contents that were not requested.
 
-**Words OCR reads.** OCR engines give lines, not words. With RapidOCR
-(`ocr_preset=rapidocr`, PP-OCRv6 for German and most European languages) the
-option also asks RapidOCR for a box per word (its `Global.return_word_box`), reads
-every page whole instead of in the parts the layout found, so a line is not cut at
-a layout box, and adds the words it read where the text layer draws none. A word
-the text layer draws is not doubled; invisible text, the layer a scanner lays
-under its picture, is not drawn, so the words read in the picture stay beside it.
-Other engines add no words: their pages carry the text layer's only.
-
-Reading every page whole costs time, so it happens only on requests that ask for
-word boxes. docling-serve keeps one converter per set of options, so the two kinds
-of request do not share one; with more than two kinds in use, raise
-`DOCLING_SERVE_OPTIONS_CACHE_SIZE` (default 2) to avoid reloading models.
+**With PP-OCRv6** (`ocr_preset=pp-ocrv6`) the option also turns on the engine's
+`whole_page` and `return_word_box`: every page is read whole, so a line is not cut
+at a layout box, and each word OCR reads gets a box of its own. A word the text
+layer draws is not doubled; over invisible text (a scanner's layer) the read words
+stay. Both options cost time and
+stay off for requests that do not ask for word boxes. docling-serve keeps one
+converter per set of options, so the two kinds of request do not share one; with
+more than two kinds in use, raise `DOCLING_SERVE_OPTIONS_CACHE_SIZE` (default 2) to
+avoid reloading models.
 
 Adding a field to a pydantic model is not enough on its own: a model that holds
 another one keeps a copy of its schema from when it was first built, so the
@@ -658,10 +657,6 @@ version (replace `v1.36.0` with the new tag). Build the image first (step 2) for
    r.document.word_boxes = {1: None}
    print('answered:', 'word_boxes' in r.model_dump()['document'])"
    ```
-
-   Then send a scanned page (no text layer) with `ocr_preset=rapidocr` and
-   `include_word_boxes=true`: its `word_cells` must hold words with `from_ocr: true`.
-   None means RapidOCR's model or its answer changed and the patch no longer reaches it.
 
 6. **Output unchanged, speed kept.** Run docling with and without the patch over the
    test documents and compare; the script exits non-zero if any document is less than
