@@ -33,7 +33,9 @@ The plugins are selectable per-request through the standard docling-serve API:
 The image pins the plugin versions (`DOCLING_GLM_OCR_VERSION`,
 `DOCLING_PP_DOC_LAYOUT_VERSION` and `DOCLING_PP_OCRV6_VERSION` in
 `plugins/Dockerfile.docling-serve`) and bakes the PP-DocLayout-V3 and PP-OCRv6 models
-into it, so no pod downloads them. Renovate opens a
+into it at pinned Hugging Face revisions (`PP_DOC_LAYOUT_MODEL_REVISION`,
+`PP_OCRV6_DET_REVISION`, `PP_OCRV6_REC_REVISION`), so no pod downloads them and a new
+upload to a model repo changes nothing until the revision here is moved. Renovate opens a
 PR when a new plugin version is released; merge it before dispatching the image build.
 Unpinned, the build's layer cache would keep shipping the old plugins.
 

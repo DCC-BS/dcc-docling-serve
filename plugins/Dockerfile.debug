@@ -46,9 +46,19 @@ allow_patterns=['*.json', '*.safetensors'])" "${PP_DOC_LAYOUT_MODEL_REPO}" "${PP
     && python -c "import os; from transformers import AutoConfig; AutoConfig.from_pretrained(os.environ['PP_DOC_LAYOUT_MODEL_NAME'])"
 
 # Bake the PP-OCRv6 models (medium, ~134 MB) where docling-serve's artifacts path points: the plugin
-# loads them from disk instead of fetching them from huggingface.co in every new pod
-RUN python -c "import os; from pathlib import Path; from docling_pp_ocrv6.model import PPOCRv6Model; \
-PPOCRv6Model.download_models(local_dir=Path(os.environ['DOCLING_SERVE_ARTIFACTS_PATH']) / 'PPOCRv6')" \
+# loads them from disk instead of fetching them from huggingface.co in every new pod. Pinned like the
+# layout weights, so a new upload to the repos changes nothing until the revisions here change.
+ARG PP_OCRV6_DET_REPO=PaddlePaddle/PP-OCRv6_medium_det_onnx
+ARG PP_OCRV6_DET_REVISION=61323801669c338b7891481ec7bac61ce31b576a
+ARG PP_OCRV6_REC_REPO=PaddlePaddle/PP-OCRv6_medium_rec_onnx
+ARG PP_OCRV6_REC_REVISION=50c7eacafc52fa7bcf4194e8cd08e46f8558504b
+RUN python -c "import os, sys; from pathlib import Path; from huggingface_hub import snapshot_download; \
+from docling_pp_ocrv6.model import PPOCRv6Model; \
+models = Path(os.environ['DOCLING_SERVE_ARTIFACTS_PATH']) / 'PPOCRv6'; \
+[snapshot_download(repo, revision=rev, local_dir=models / part, allow_patterns=['inference.onnx', 'inference.yml']) \
+ for part, repo, rev in (('det', sys.argv[1], sys.argv[2]), ('rec', sys.argv[3], sys.argv[4]))]; \
+PPOCRv6Model._ensure_rec_keys(models / 'rec')" \
+        "${PP_OCRV6_DET_REPO}" "${PP_OCRV6_DET_REVISION}" "${PP_OCRV6_REC_REPO}" "${PP_OCRV6_REC_REVISION}" \
     && find "${DOCLING_SERVE_ARTIFACTS_PATH}/PPOCRv6" -name .cache -type d -prune -exec rm -rf {} +
 
 # Mute health-probe log records (site-packages drop-in, no upstream file touched)
