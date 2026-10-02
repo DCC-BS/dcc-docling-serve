@@ -125,7 +125,7 @@ ghcr.io/dcc-bs/dcc-docling-serve:latest
 
 | Service | Image |
 | --- | --- |
-| **vllm-glm-ocr** | `vllm/vllm-openai:v0.29.0` |
+| **vllm-glm-ocr** | `vllm/vllm-openai:v0.30.0` |
 | **docling-serve** | `ghcr.io/dcc-bs/dcc-docling-serve:latest` |
 
 Environment variables are documented in `.env.example`.
