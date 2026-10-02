@@ -14,8 +14,8 @@ image that bundles two community plugins:
 | `ghcr.io/dcc-bs/dcc-docling-serve-cu128` | `docling-serve-cu128` | linux/amd64 | CUDA 12.8, torch from cu128 index |
 | `ghcr.io/dcc-bs/dcc-docling-serve-cu130` | `docling-serve-cu130` | linux/amd64 | CUDA 13.0, torch from cu130 index |
 
-Each image is tagged with the upstream docling-serve version it is built on (e.g. `v1.36.0`;
-`v1.36.0-1` for a rebuild with our own changes) and `:latest`.
+Each image is tagged with the docling-serve version it is built on (e.g. `v1.36.0`) and `:latest`:
+`dcc-docling-serve:v1.36.0` is docling-serve v1.36.0 with our plugins and patches.
 
 ## Plugins
 
@@ -37,7 +37,7 @@ The image pins the plugin versions (`DOCLING_GLM_OCR_VERSION`,
 into it at pinned Hugging Face revisions (`PP_DOC_LAYOUT_MODEL_REVISION`,
 `PP_OCRV6_DET_REVISION`, `PP_OCRV6_REC_REVISION`), so no pod downloads them and a new
 upload to a model repo changes nothing until the revision here is moved. Renovate opens a
-PR when a new plugin version is released; merge it, then push a `-N` tag (e.g. `v1.36.0-1`) to publish it.
+PR when a new plugin version is released; merge it, then run the image build again for the current version.
 Unpinned, the build's layer cache would keep shipping the old plugins.
 
 The docling-serve web UI at `/ui` is upstream's, unchanged. It lists both plugins
@@ -681,11 +681,11 @@ version (replace `v1.36.0` with the new tag). Build the image first (step 2) for
    detection failed" in the logs) if docling changed it. `benchmarks/list_eval/run_all.sh
    dcc-docling-serve-test:cu130` should show the `pp-rules` numbers from the table above.
 
-8. **Publish.** Merge to `main`, then tag the merge commit with the upstream version and
-   push the tag:
+8. **Publish.** Merge to `main`, then run the *Build docling-serve with layout and OCR
+   plugins* workflow with `version=v1.36.0`:
 
    ```bash
-   git tag v1.36.0 && git push origin v1.36.0
+   gh workflow run cd.yml -f version=v1.36.0
    ```
 
 ## CI/CD
@@ -697,18 +697,16 @@ Runs on push/PR: lint with ruff.
 ### Docker image (`.github/workflows/cd.yml`)
 
 Builds and pushes the patched docling-serve images (default, `-cpu`, `-cu128`, `-cu130`)
-to GHCR when a version tag (`v*.*.*`) is pushed; pushing to `main` never publishes an
-image. The tag says which upstream docling-serve release to build on:
+to GHCR. It runs **only when dispatched manually** (Actions → *Build docling-serve with
+layout and OCR plugins* → Run workflow, or `gh workflow run cd.yml -f version=v1.36.0`);
+pushing to `main` never publishes an image. Its one input, `version`, is a docling-serve
+release tag: every variant is built on that upstream tag and published under the same tag
+and `:latest`. Moving tags such as `main` or `latest` are refused.
 
-- `v1.36.0` builds on upstream `v1.36.0` and publishes `:v1.36.0` and `:latest`.
-- `v1.36.0-1`, `v1.36.0-2`, … also build on upstream `v1.36.0`: use them to release our
-  own changes (a plugin bump, a patch) while upstream stays on the same version. They
-  publish `:v1.36.0-1` and `:latest`.
+To ship our own changes (a plugin bump, a patch) without a new upstream release, run it
+again with the current version; it overwrites that tag with the new build.
 
-Tag only upstream releases that passed the checklist in *Upgrading docling-serve*. A tag
-without a matching upstream image fails the run before anything is pushed.
-
-The upstream tag is resolved to its digest at the start of the run and the build uses
+The tag is resolved to its digest at the start of the run and the build uses
 that digest, so all variants of one run share the same base. The digest is shown in the
 run summary and stored in the image labels:
 
