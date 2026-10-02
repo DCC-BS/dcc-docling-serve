@@ -1,19 +1,13 @@
 name: Build docling-serve with layout and OCR plugins
 
-# Images are published only when this workflow is dispatched manually, with the
-# upstream docling-serve release to build on. Follow "Upgrading docling-serve" in the
-# README before dispatching a new version.
+# Images are published when a version tag is pushed. The tag names the upstream
+# docling-serve release to build on: v1.36.0 builds on upstream v1.36.0, and v1.36.0-1
+# (a rebuild with our own changes) builds on v1.36.0 too. Follow "Upgrading docling-serve"
+# in the README before tagging a new upstream version.
 on:
-  workflow_dispatch:
-    inputs:
-      docling_serve_tag:
-        description: "Upstream docling-serve tag to build on, tested per the README upgrade checklist (e.g. v1.35.0, or main)"
-        required: true
-        default: "v1.35.0"
-      image_tag:
-        description: "Tag to publish our images under (besides latest). Empty: same as the upstream tag"
-        required: false
-        default: ""
+  push:
+    tags:
+      - "v*.*.*"
 
 env:
   REGISTRY: ghcr.io
@@ -67,14 +61,13 @@ jobs:
       - name: Determine tags
         id: tag
         env:
-          UPSTREAM_TAG: ${{ inputs.docling_serve_tag }}
-          IMAGE_TAG: ${{ inputs.image_tag }}
+          GIT_TAG: ${{ github.ref_name }}
         run: |
-          echo "upstream=$UPSTREAM_TAG" >> "$GITHUB_OUTPUT"
-          echo "image=${IMAGE_TAG:-$UPSTREAM_TAG}" >> "$GITHUB_OUTPUT"
+          echo "upstream=${GIT_TAG%%-*}" >> "$GITHUB_OUTPUT"
+          echo "image=$GIT_TAG" >> "$GITHUB_OUTPUT"
 
-      # Pin the upstream image by digest: tags like `main` move, the digest records exactly
-      # what this build is based on (image label + run summary).
+      # Pin the upstream image by digest: the variants of one run share the same base, and the
+      # digest records exactly what this build is based on (image label + run summary).
       - name: Resolve upstream image
         id: upstream
         env:

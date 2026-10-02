@@ -14,7 +14,8 @@ image that bundles two community plugins:
 | `ghcr.io/dcc-bs/dcc-docling-serve-cu128` | `docling-serve-cu128` | linux/amd64 | CUDA 12.8, torch from cu128 index |
 | `ghcr.io/dcc-bs/dcc-docling-serve-cu130` | `docling-serve-cu130` | linux/amd64 | CUDA 13.0, torch from cu130 index |
 
-Each image is tagged with the upstream docling-serve version (e.g. `v2.3.0`) and `:latest`.
+Each image is tagged with the upstream docling-serve version it is built on (e.g. `v1.36.0`;
+`v1.36.0-1` for a rebuild with our own changes) and `:latest`.
 
 ## Plugins
 
@@ -680,9 +681,12 @@ version (replace `v1.36.0` with the new tag). Build the image first (step 2) for
    detection failed" in the logs) if docling changed it. `benchmarks/list_eval/run_all.sh
    dcc-docling-serve-test:cu130` should show the `pp-rules` numbers from the table above.
 
-8. **Publish.** Push, then run the *Build docling-serve with layout and OCR plugins*
-   workflow manually with `docling_serve_tag=v1.36.0`, and update the input's default in
-   `.github/workflows/cd.yml`.
+8. **Publish.** Merge to `main`, then tag the merge commit with the upstream version and
+   push the tag:
+
+   ```bash
+   git tag v1.36.0 && git push origin v1.36.0
+   ```
 
 ## CI/CD
 
@@ -693,23 +697,23 @@ Runs on push/PR: lint with ruff.
 ### Docker image (`.github/workflows/cd.yml`)
 
 Builds and pushes the patched docling-serve images (default, `-cpu`, `-cu128`, `-cu130`)
-to GHCR. It runs **only when dispatched manually** (Actions → *Build docling-serve with
-layout and OCR plugins* → Run workflow); pushing to `main` never publishes an image.
-Inputs:
+to GHCR when a version tag (`v*.*.*`) is pushed; pushing to `main` never publishes an
+image. The tag says which upstream docling-serve release to build on:
 
-- `docling_serve_tag` (default `v1.35.0`): the upstream tag every variant is built from.
-  Prefer release tags; upstream's `main` (and `latest`) track unreleased code and move
-  with every merge.
-- `image_tag` (optional): the tag our images are published under, besides `:latest`.
-  Empty means the same as `docling_serve_tag`. Example: build on upstream `main` but
-  publish as `v1.35.0`.
+- `v1.36.0` builds on upstream `v1.36.0` and publishes `:v1.36.0` and `:latest`.
+- `v1.36.0-1`, `v1.36.0-2`, … also build on upstream `v1.36.0`: use them to release our
+  own changes (a plugin bump, a patch) while upstream stays on the same version. They
+  publish `:v1.36.0-1` and `:latest`.
+
+Tag only upstream releases that passed the checklist in *Upgrading docling-serve*. A tag
+without a matching upstream image fails the run before anything is pushed.
 
 The upstream tag is resolved to its digest at the start of the run and the build uses
-that digest, so a moving tag cannot change between variants. The digest is shown in the
+that digest, so all variants of one run share the same base. The digest is shown in the
 run summary and stored in the image labels:
 
 ```bash
-docker inspect ghcr.io/dcc-bs/dcc-docling-serve:v1.35.0 \
+docker inspect ghcr.io/dcc-bs/dcc-docling-serve:v1.36.0 \
   --format '{{ index .Config.Labels "org.opencontainers.image.base.name" }} {{ index .Config.Labels "org.opencontainers.image.base.digest" }}'
 ```
 
