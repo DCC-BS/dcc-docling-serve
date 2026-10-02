@@ -1,13 +1,14 @@
 name: Build docling-serve with layout and OCR plugins
 
-# Images are published when a version tag is pushed. The tag names the upstream
-# docling-serve release to build on: v1.36.0 builds on upstream v1.36.0, and v1.36.0-1
-# (a rebuild with our own changes) builds on v1.36.0 too. Follow "Upgrading docling-serve"
-# in the README before tagging a new upstream version.
+# Images are published only when this workflow is dispatched manually with a docling-serve
+# release tag. Our images get the same tag: dcc-docling-serve:v1.36.0 is docling-serve v1.36.0
+# with our plugins and patches. Follow "Upgrading docling-serve" in the README first.
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "docling-serve release tag to build on and publish under (e.g. v1.36.0)"
+        required: true
 
 env:
   REGISTRY: ghcr.io
@@ -58,25 +59,26 @@ jobs:
       - name: Lowercase image name
         run: echo "IMAGE_NAME=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
 
-      - name: Determine tags
-        id: tag
+      # Release tags only: moving tags like main or latest would publish unreleased code
+      # under a version number.
+      - name: Check version
         env:
-          GIT_TAG: ${{ github.ref_name }}
+          VERSION: ${{ inputs.version }}
         run: |
-          echo "upstream=${GIT_TAG%%-*}" >> "$GITHUB_OUTPUT"
-          echo "image=$GIT_TAG" >> "$GITHUB_OUTPUT"
+          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+            || { echo "::error::version must be a docling-serve release tag like v1.36.0, got '$VERSION'"; exit 1; }
 
       # Pin the upstream image by digest: the variants of one run share the same base, and the
       # digest records exactly what this build is based on (image label + run summary).
       - name: Resolve upstream image
         id: upstream
         env:
-          UPSTREAM_REF: ${{ matrix.variant.upstream_image }}:${{ steps.tag.outputs.upstream }}
+          UPSTREAM_REF: ${{ matrix.variant.upstream_image }}:${{ inputs.version }}
         run: |
           digest="$(docker buildx imagetools inspect "$UPSTREAM_REF" --format '{{json .Manifest.Digest}}' | tr -d '"')"
           test -n "$digest"
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
-          echo "- \`$UPSTREAM_REF\` → \`$digest\` published as \`${{ steps.tag.outputs.image }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`$UPSTREAM_REF\` → \`$digest\` published as \`${{ inputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build and push
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -85,14 +87,14 @@ jobs:
           file: plugins/Dockerfile.docling-serve
           build-args: |
             DOCLING_SERVE_IMAGE=${{ matrix.variant.upstream_image }}
-            DOCLING_SERVE_TAG=${{ steps.tag.outputs.upstream }}@${{ steps.upstream.outputs.digest }}
+            DOCLING_SERVE_TAG=${{ inputs.version }}@${{ steps.upstream.outputs.digest }}
           platforms: ${{ matrix.variant.platforms }}
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}${{ matrix.variant.suffix }}:${{ steps.tag.outputs.image }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}${{ matrix.variant.suffix }}:${{ inputs.version }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}${{ matrix.variant.suffix }}:latest
           labels: |
-            org.opencontainers.image.base.name=${{ matrix.variant.upstream_image }}:${{ steps.tag.outputs.upstream }}
+            org.opencontainers.image.base.name=${{ matrix.variant.upstream_image }}:${{ inputs.version }}
             org.opencontainers.image.base.digest=${{ steps.upstream.outputs.digest }}
             org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.variant.cache_scope }}
