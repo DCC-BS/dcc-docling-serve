@@ -8,8 +8,8 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}" TORCH_DEVICE=cuda
-PATCHED_IMAGE="${PATCHED_IMAGE:-dcc-docling-serve-test:v1.35.0-cu130}"
-OFFICIAL_IMAGE="${OFFICIAL_IMAGE:-ghcr.io/docling-project/docling-serve-cu130:v1.35.0}"
+PATCHED_IMAGE="${PATCHED_IMAGE:-dcc-docling-serve-test:v1.36.0-cu130}"
+OFFICIAL_IMAGE="${OFFICIAL_IMAGE:-ghcr.io/docling-project/docling-serve-cu130:v1.36.0}"
 
 uv run --script make_synthetic.py
 
