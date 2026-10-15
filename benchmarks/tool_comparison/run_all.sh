@@ -8,8 +8,8 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}" TORCH_DEVICE=cuda
-PATCHED_IMAGE="${PATCHED_IMAGE:-dcc-docling-serve-test:v1.36.0-cu130}"
-OFFICIAL_IMAGE="${OFFICIAL_IMAGE:-ghcr.io/docling-project/docling-serve-cu130:v1.36.0}"
+PATCHED_IMAGE="${PATCHED_IMAGE:-dcc-docling-serve-test:v1.37.0-cu130}"
+OFFICIAL_IMAGE="${OFFICIAL_IMAGE:-ghcr.io/docling-project/docling-serve-cu130:v1.37.0}"
 
 uv run --script make_synthetic.py
 
@@ -17,8 +17,7 @@ uv run --script run_jina.py "$@" &
 JINA_PID=$!
 
 uv run --script run_docling.py --tool docling-today --image "$OFFICIAL_IMAGE" "$@"
-uv run --script run_docling.py --tool docling-gpu-ocr --image "$PATCHED_IMAGE" --env DCC_OCR_IGNORE_SHAPES=0 "$@"
-uv run --script run_docling.py --tool docling-gpu-ocr-noshape --image "$PATCHED_IMAGE" --env DCC_OCR_IGNORE_SHAPES=1 "$@"
+uv run --script run_docling.py --tool docling-gpu-ocr --image "$PATCHED_IMAGE" "$@"
 uv run --script run_marker.py "$@"
 uv run --script run_doctr.py "$@"
 uv run --script run_markitdown.py "$@"

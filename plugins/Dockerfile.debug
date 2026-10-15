@@ -1,6 +1,6 @@
 # Dockerfile.debug — build docling-serve with plugins installed from local source.
 #
-# Same image as Dockerfile.docling-serve (GPU OCR, shape patch, log muting), except:
+# Same image as Dockerfile.docling-serve (GPU OCR, log muting, word boxes), except:
 #   - docling-glm-ocr, docling-pp-doc-layout and docling-pp-ocrv6 are installed
 #     from the sibling repositories instead of PyPI.
 #   - The build context MUST be the repo root (parent of dcc-docling-serve/) so
@@ -66,12 +66,6 @@ COPY dcc-docling-serve/plugins/mute_health_logs.py /tmp/mute_health_logs.py
 RUN SP="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
     && cp /tmp/mute_health_logs.py "$SP/dcc_mute_health_logs.py" \
     && printf 'import dcc_mute_health_logs\n' > "$SP/zz_dcc_mute_health_logs.pth"
-
-# Vector shapes no longer send programmatic PDF text to OCR (DCC_OCR_IGNORE_SHAPES=0 restores docling's behaviour)
-COPY dcc-docling-serve/plugins/ocr_ignore_shapes.py /tmp/ocr_ignore_shapes.py
-RUN SP="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
-    && cp /tmp/ocr_ignore_shapes.py "$SP/dcc_ocr_ignore_shapes.py" \
-    && printf 'import dcc_ocr_ignore_shapes\n' > "$SP/zz_dcc_ocr_ignore_shapes.pth"
 
 # The convert API can hand back the words of each page and where they stand
 # (DCC_WORD_BOXES=0 leaves the API as upstream has it)

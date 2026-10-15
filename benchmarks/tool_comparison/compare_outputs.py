@@ -1,9 +1,9 @@
 """Compare the markdown two runners produced for the same documents.
 
-Used in the upgrade checklist: run docling with and without the shape patch, then check
-that the markdown is still (almost) the same.
+Run two docling configurations over the same documents, then check that the markdown is
+still (almost) the same.
 
-    python benchmarks/tool_comparison/compare_outputs.py docling-gpu-ocr docling-gpu-ocr-noshape
+    python benchmarks/tool_comparison/compare_outputs.py <left tool id> <right tool id>
 """
 
 import argparse

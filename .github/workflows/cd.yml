@@ -1,13 +1,13 @@
 name: Build docling-serve with layout and OCR plugins
 
 # Images are published only when this workflow is dispatched manually with a docling-serve
-# release tag. Our images get the same tag: dcc-docling-serve:v1.36.0 is docling-serve v1.36.0
+# release tag. Our images get the same tag: dcc-docling-serve:v1.37.0 is docling-serve v1.37.0
 # with our plugins and patches. Follow "Upgrading docling-serve" in the README first.
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "docling-serve release tag to build on and publish under (e.g. v1.36.0)"
+        description: "docling-serve release tag to build on and publish under (e.g. v1.37.0)"
         required: true
 
 env:
@@ -66,7 +66,7 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: |
           [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
-            || { echo "::error::version must be a docling-serve release tag like v1.36.0, got '$VERSION'"; exit 1; }
+            || { echo "::error::version must be a docling-serve release tag like v1.37.0, got '$VERSION'"; exit 1; }
 
       # Pin the upstream image by digest: the variants of one run share the same base, and the
       # digest records exactly what this build is based on (image label + run summary).

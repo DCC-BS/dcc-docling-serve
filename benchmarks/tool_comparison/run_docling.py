@@ -4,9 +4,8 @@
 # ///
 """Convert the documents with a docling-serve image (one container, async API).
 
-    uv run --script run_docling.py --tool docling-today --image ghcr.io/docling-project/docling-serve-cu130:v1.35.0
-    uv run --script run_docling.py --tool docling-gpu-ocr --image dcc-docling-serve-test:v1.35.0-cu130 \
-        --env DCC_OCR_IGNORE_SHAPES=0
+uv run --script run_docling.py --tool docling-today --image ghcr.io/docling-project/docling-serve-cu130:v1.35.0
+uv run --script run_docling.py --tool docling-gpu-ocr --image dcc-docling-serve-test:v1.37.0-cu130
 """
 
 import json

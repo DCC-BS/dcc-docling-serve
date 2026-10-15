@@ -14,8 +14,8 @@ image that bundles two community plugins:
 | `ghcr.io/dcc-bs/dcc-docling-serve-cu128` | `docling-serve-cu128` | linux/amd64 | CUDA 12.8, torch from cu128 index |
 | `ghcr.io/dcc-bs/dcc-docling-serve-cu130` | `docling-serve-cu130` | linux/amd64 | CUDA 13.0, torch from cu130 index |
 
-Each image is tagged with the docling-serve version it is built on (e.g. `v1.36.0`) and `:latest`:
-`dcc-docling-serve:v1.36.0` is docling-serve v1.36.0 with our plugins and patches.
+Each image is tagged with the docling-serve version it is built on (e.g. `v1.37.0`) and `:latest`:
+`dcc-docling-serve:v1.37.0` is docling-serve v1.37.0 with our plugins and patches.
 
 ## Plugins
 
@@ -250,51 +250,6 @@ every image whose torch has CUDA support. CPU images are left unchanged.
 No request option is needed. docling already enables CUDA for RapidOCR when the
 accelerator device is CUDA, which it is by default when a GPU is visible.
 
-## OCR: vector shapes no longer trigger OCR
-
-**Problem.** Since docling 2.121 the default OCR mode (`pdf_aware_layout_regions`) sends a
-layout region to OCR when it overlaps a bitmap *or a vector shape*, even if the region
-already has PDF text. Table rules, underlines and background fills are shapes, so on
-born-digital documents almost every region is OCR'd. A financial statement with a
-full-page background, for example, is OCR'd completely although all 172 text cells are
-real text. docling then keeps the PDF text wherever both exist, so this OCR is thrown
-away. There is no request option to change it.
-
-**Evidence** (docling-serve 1.35.0, RTX 4090, 27 test documents / 976 pages, see
-[Converter comparison](#converter-comparison)):
-
-| | OCR rule as upstream | Shapes ignored |
-|---|---:|---:|
-| Conversion time, all documents | 522 s | 165 s |
-| CELEX regulation, 603 pages | 367 s | 88 s |
-| Markdown identical to upstream | – | 22 of 27 documents, rest ≥ 97.7 % similar |
-| Ground-truth scores (synthetic PDFs) | same | same |
-
-The remaining differences come from OCR on logos and drawings (for example a
-stray letter read from a vector logo). All 77 tables were identical.
-
-**What the patch changes.** `plugins/ocr_ignore_shapes.py` is installed into
-site-packages as `dcc_ocr_ignore_shapes.py` with a `.pth` file, like the health-log
-muting. When docling imports `docling.models.base_ocr_model`, it wraps
-`BaseOcrModel._find_pdf_aware_layout_ocr_rects` so that, for that call only, the page
-backend reports no vector shapes. Everything else stays as upstream:
-
-- Regions that overlap a bitmap (scans, photos, screenshots) are still OCR'd.
-- Regions without PDF text (text drawn as outlines, image-only pages) are still OCR'd.
-- `force_ocr` and the other OCR modes are not affected.
-
-**What can be lost.** Text drawn as vector paths inside a region that also contains
-real PDF text (for example an outlined word next to normal text in the same paragraph)
-is no longer OCR'd. None of the 27 test documents contained meaningful text of this
-kind.
-
-| Variable | Description | Default |
-| --- | --- | --- |
-| `DCC_OCR_IGNORE_SHAPES` | Set to `0`/`false`/`no` to restore docling's behaviour | `1` |
-
-If the wrapped docling method is missing (renamed upstream), the patch logs a warning
-and does nothing; conversions keep working at the old speed.
-
 ## Health-probe log muting
 
 Kubernetes/Compose liveness probes hitting `GET /health` produce two INFO records
@@ -320,7 +275,7 @@ run their own OCR for the pages that have no text layer. docling has measured
 all of it already and throws it away after assembly.
 
 The image ships `plugins/word_boxes.py`, installed into site-packages as
-`dcc_word_boxes.py` plus a `.pth` file, like the shape patch. It adds one
+`dcc_word_boxes.py` plus a `.pth` file, like the health-log muting. It adds one
 request option and one field to the answer:
 
 | | |
@@ -505,7 +460,7 @@ uv run --script benchmarks/e2e_timing.py --docs ../test-docs --variants official
 ## Converter comparison
 
 `benchmarks/tool_comparison/` compares docling (upstream, with GPU OCR, and with GPU
-OCR plus the shape patch) with marker, docTR, markitdown and Jina Reader on the test
+OCR plus the former shape patch, which docling 2.136 made obsolete) with marker, docTR, markitdown and Jina Reader on the test
 documents plus four synthetic PDFs with exact ground truth (charts, tables and forms,
 a scanned page, a designed page). It measures conversion time per document and page,
 scores the markdown against the ground truth and the PDF text layer, and builds an
@@ -598,9 +553,9 @@ check to the upgrade list below that lists still appear.
 
 ## Upgrading docling-serve
 
-Our image changes upstream in a few places (plugins, GPU OCR, the shape patch, the words
+Our image changes upstream in a few places (plugins, GPU OCR, the words
 of each page). Check each one before publishing an image built on a new docling-serve
-version (replace `v1.36.0` with the new tag). Build the image first (step 2) for the checks that use it.
+version (replace `v1.37.0` with the new tag). Build the image first (step 2) for the checks that use it.
 
 1. **Plugins in the web UI.** We ship upstream's UI unchanged. Check that the plugins
    still show up where the UI reads its choices from: `glm-ocr-remote` under the OCR
@@ -622,7 +577,7 @@ version (replace `v1.36.0` with the new tag). Build the image first (step 2) for
 
    ```bash
    docker build --build-arg DOCLING_SERVE_IMAGE=ghcr.io/docling-project/docling-serve-cu130 \
-     --build-arg DOCLING_SERVE_TAG=v1.36.0 -t dcc-docling-serve-test:cu130 \
+     --build-arg DOCLING_SERVE_TAG=v1.37.0 -t dcc-docling-serve-test:cu130 \
      -f plugins/Dockerfile.docling-serve plugins/
    ```
 
@@ -635,16 +590,15 @@ version (replace `v1.36.0` with the new tag). Build the image first (step 2) for
    print(ort.InferenceSession(model, providers=['CUDAExecutionProvider', 'CPUExecutionProvider']).get_providers())"
    ```
 
-4. **Shape patch.** First check whether it is still needed: if upstream no longer
-   passes `shapes=True` in `base_ocr_model.py`, or added an option for it, remove
-   `plugins/ocr_ignore_shapes.py` and its Dockerfile lines. Otherwise check that it
-   still applies (`True`):
+4. **Vector shapes do not force OCR.** docling 2.136 fixed this upstream (we carried a
+   patch for it until docling-serve 1.37.0), so a rule or a table fill crossing
+   programmatic text no longer sends that text to OCR. Check the fix is still in
+   (`True`); if it is gone, restore the patch from git history (`plugins/ocr_ignore_shapes.py`,
+   removed with the move to 1.37.0):
 
    ```bash
-   docker run --rm --entrypoint sh dcc-docling-serve-test:cu130 -c \
-     "grep -n 'shapes=True' \$(python -c 'import docling.models.base_ocr_model as m; print(m.__file__)')"
    docker run --rm --entrypoint python dcc-docling-serve-test:cu130 -c \
-     "import docling.models.base_ocr_model as m; print(getattr(m.BaseOcrModel._find_pdf_aware_layout_ocr_rects, '_dcc_ignores_shapes', False))"
+     "import docling.models.base_ocr_model as m; print(hasattr(m.BaseOcrModel, '_is_rule_like'))"
    ```
 
 5. **Words of each page.** Check that the option and the field are still there,
@@ -661,16 +615,11 @@ version (replace `v1.36.0` with the new tag). Build the image first (step 2) for
    print('answered:', 'word_boxes' in r.model_dump()['document'])"
    ```
 
-6. **Output unchanged, speed kept.** Run docling with and without the patch over the
-   test documents and compare; the script exits non-zero if any document is less than
-   97 % similar. Then compare timings against the previous release:
+6. **Speed kept.** Compare timings against the previous release; born-digital documents
+   (the CELEX regulation) should not be OCR-bound:
 
    ```bash
-   cd benchmarks/tool_comparison
-   uv run --script run_docling.py --tool docling-gpu-ocr --image dcc-docling-serve-test:cu130 --env DCC_OCR_IGNORE_SHAPES=0 --force
-   uv run --script run_docling.py --tool docling-gpu-ocr-noshape --image dcc-docling-serve-test:cu130 --env DCC_OCR_IGNORE_SHAPES=1 --force
-   python3 compare_outputs.py docling-gpu-ocr docling-gpu-ocr-noshape
-   cd ../.. && uv run --script benchmarks/e2e_timing.py --docs ../test-docs --tag v1.36.0 --variants official-cu130 custom-cu130 \
+   uv run --script benchmarks/e2e_timing.py --docs ../test-docs --tag v1.37.0 --variants official-cu130 custom-cu130 \
      --image custom-cu130=dcc-docling-serve-test:cu130
    ```
 
@@ -682,10 +631,10 @@ version (replace `v1.36.0` with the new tag). Build the image first (step 2) for
    dcc-docling-serve-test:cu130` should show the `pp-rules` numbers from the table above.
 
 8. **Publish.** Merge to `main`, then run the *Build docling-serve with layout and OCR
-   plugins* workflow with `version=v1.36.0`:
+   plugins* workflow with `version=v1.37.0`:
 
    ```bash
-   gh workflow run cd.yml -f version=v1.36.0
+   gh workflow run cd.yml -f version=v1.37.0
    ```
 
 ## CI/CD
@@ -698,7 +647,7 @@ Runs on push/PR: lint with ruff.
 
 Builds and pushes the patched docling-serve images (default, `-cpu`, `-cu128`, `-cu130`)
 to GHCR. It runs **only when dispatched manually** (Actions → *Build docling-serve with
-layout and OCR plugins* → Run workflow, or `gh workflow run cd.yml -f version=v1.36.0`);
+layout and OCR plugins* → Run workflow, or `gh workflow run cd.yml -f version=v1.37.0`);
 pushing to `main` never publishes an image. Its one input, `version`, is a docling-serve
 release tag: every variant is built on that upstream tag and published under the same tag
 and `:latest`. Moving tags such as `main` or `latest` are refused.
@@ -711,7 +660,7 @@ that digest, so all variants of one run share the same base. The digest is shown
 run summary and stored in the image labels:
 
 ```bash
-docker inspect ghcr.io/dcc-bs/dcc-docling-serve:v1.36.0 \
+docker inspect ghcr.io/dcc-bs/dcc-docling-serve:v1.37.0 \
   --format '{{ index .Config.Labels "org.opencontainers.image.base.name" }} {{ index .Config.Labels "org.opencontainers.image.base.digest" }}'
 ```
 
