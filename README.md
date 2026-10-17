@@ -637,6 +637,11 @@ version (replace `v1.37.0` with the new tag). Build the image first (step 2) for
    gh workflow run cd.yml -f version=v1.37.0
    ```
 
+9. **Documentation.** Update the docling pages of the documentation repo
+   (`markdown/docling/serve.md`) to match: the version in the *Releases* example, the
+   features and environment variables of any patch added or removed, and the plugin
+   versions if they changed. Open a PR there.
+
 ## CI/CD
 
 ### CI (`.github/workflows/ci.yml`)
