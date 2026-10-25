@@ -69,6 +69,10 @@ jobs:
   # published images come from cd.yml (manual dispatch with a docling-serve release tag).
   build:
     runs-on: ubuntu-latest
+    # Read-only: checkout plus reading the GHA build cache
+    permissions:
+      contents: read
+      actions: read
     env:
       # renovate: datasource=github-releases depName=docling-project/docling-serve
       DOCLING_SERVE_VERSION: v1.38.1
