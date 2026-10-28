@@ -18,3 +18,4 @@ build/
 benchmarks/results/
 benchmarks/tool_comparison/results/
 benchmarks/list_eval/results/
+benchmarks/tool_comparison/public/

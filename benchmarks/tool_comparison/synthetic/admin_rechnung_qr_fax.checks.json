@@ -1,0 +1,152 @@
+[
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Sanit\u00e4r Beispiel GmbH"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Werkstrasse 7"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "4123 Allschwil"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "MWST CHE-000.111.222"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Lea Muster"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Beispielweg 12"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "4051 Basel"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Rechnung Nr. 26-0193"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Datum: 17.02.2026"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Auftrag: Ersatz Mischbatterie K\u00fcche"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Arbeitsstunden Monteur 6.5 Std. 115.00 747.50"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Mischbatterie K\u00fcche 1 Stk. 289.00 289.00"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Kleinmaterial pauschal 35.00 35.00"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Fahrzeugpauschale 2 x 45.00 90.00"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Zwischentotal 1'161.50"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "MWST 8.1 % 94.08"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Total 1'255.58"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Zahlbar innert 30 Tagen netto. Wir danken f\u00fcr Ihren Auftrag."
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Empfangsschein"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Zahlteil"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "CH44 3199 9123 0008 8901 2"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "00 00000 00000 00026 01930 00008"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Sanit\u00e4r Beispiel GmbH"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Werkstrasse 7"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "4123 Allschwil"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Lea Muster"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Beispielweg 12"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "4051 Basel"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "CHF 1'255.58"
+  },
+  {
+    "category": "furniture",
+    "page": 1,
+    "text": "Testdokument mit fiktiven Daten"
+  }
+]

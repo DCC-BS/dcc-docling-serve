@@ -1,0 +1,147 @@
+[
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Gesuch um Anwohnerparkkarte"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Bitte in Blockschrift ausf\u00fcllen"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Name"
+  },
+  {
+    "category": "handwriting",
+    "page": 1,
+    "text": "Muster"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Vorname"
+  },
+  {
+    "category": "handwriting",
+    "page": 1,
+    "text": "Lea"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Geburtsdatum"
+  },
+  {
+    "category": "handwriting",
+    "page": 1,
+    "text": "14.07.1988"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Strasse, Nr."
+  },
+  {
+    "category": "handwriting",
+    "page": 1,
+    "text": "Beispielweg 12"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "PLZ, Ort"
+  },
+  {
+    "category": "handwriting",
+    "page": 1,
+    "text": "4051 Basel"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Telefon"
+  },
+  {
+    "category": "handwriting",
+    "page": 1,
+    "text": "079 000 12 34"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Kontrollschild"
+  },
+  {
+    "category": "handwriting",
+    "page": 1,
+    "text": "BS 123 456"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Fahrzeugmarke"
+  },
+  {
+    "category": "handwriting",
+    "page": 1,
+    "text": "VW Golf"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "G\u00fcltig ab"
+  },
+  {
+    "category": "handwriting",
+    "page": 1,
+    "text": "1. April 2026"
+  },
+  {
+    "category": "handwriting",
+    "page": 1,
+    "text": "x"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Anwohnerparkkarte"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Besucherkarte"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Gewerbeparkkarte"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Ort, Datum"
+  },
+  {
+    "category": "handwriting",
+    "page": 1,
+    "text": "Basel, 20.03.2026"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Unterschrift"
+  },
+  {
+    "category": "handwriting",
+    "page": 1,
+    "text": "L. Muster"
+  },
+  {
+    "category": "furniture",
+    "page": 1,
+    "text": "Testdokument mit fiktiven Daten"
+  }
+]

@@ -20,7 +20,8 @@ What is compared comes from a JSON config (paths relative to the config file):
     results, docs, output        results folder, document folders or files, dashboard folder
                                  (default <results>/dashboard)
     template, assessment         HTML page and pros/cons file shown on the overview
-    references                   {file name: {description, parts: {name: text}}} (optional)
+    references                   file or list of files {file name: {description, parts: {name: text}}}
+                                 (optional; missing files are skipped)
     time                         "wall" (record seconds) or "server" (meta.server_processing_s)
     compare                      {left, right}: tools selected in the Compare tab
     matrix                       tool ids with engine/layout, shown as an engine x layout grid
@@ -59,6 +60,8 @@ SOURCE_LABELS = {
     "outlined_text": "Outlined text (vector paths)",
     "bitmap_text": "Text in embedded images",
     "scan_text": "Scanned page text",
+    "photo_text": "Photographed page text",
+    "handwriting": "Handwritten entries",
     "furniture": "Page header/footer",
 }
 PAGE_WIDTH_PX = 1100
@@ -178,8 +181,10 @@ def load_config(args: argparse.Namespace) -> dict:
     config["docs"] = args.docs or [resolve(d) for d in config["docs"]]
     config["output"] = args.output or resolve(config.get("output")) or config["results"] / "dashboard"
     config["template"] = resolve(config.get("template", "dashboard.html"))
-    for key in ("assessment", "references"):
+    for key in ("assessment",):
         config[key] = resolve(config.get(key))
+    references = config.get("references") or []
+    config["references"] = [resolve(r) for r in ([references] if isinstance(references, str) else references)]
     config["tools"] = {t["id"]: t for t in config["tools"]}
     return config
 
@@ -305,7 +310,11 @@ def main() -> None:
     (out_dir / "data" / "docs").mkdir(parents=True, exist_ok=True)
     outputs, setups = load_outputs(config["results"], tool_config), load_setups(config["results"], tool_config)
     tools = [t for t in tool_config if t in setups or any(t in o for o in outputs.values())]
-    references = json.loads(config["references"].read_text()) if config["references"] else {}
+    # Several files may contribute; a missing one (an optional public set not fetched) is skipped
+    references = {}
+    for path in config["references"]:
+        if path.exists():
+            references |= json.loads(path.read_text())
     synthetic_dir = HERE / "synthetic"
 
     doc_rows = []

@@ -36,6 +36,7 @@ def list_docs(folders: list[Path], only: list[str] | None = None) -> list[Path]:
         (
             p
             for folder in folders
+            if folder.exists()  # an optional public set that was not fetched
             for p in (folder.iterdir() if folder.is_dir() else [folder])
             if p.suffix.lower() in SUPPORTED_SUFFIXES
         ),
@@ -77,7 +78,8 @@ class Recorder:
             t0 = time.perf_counter()
             try:
                 out = convert(doc)
-                seconds = time.perf_counter() - t0
+                # A runner that repeats the conversion reports its median itself
+                seconds = out.pop("seconds", None) or time.perf_counter() - t0
                 self.write(doc, seconds=seconds, **out)
                 log(f"{self.tool}: {doc.name} ok in {seconds:.1f}s")
             except Exception as error:  # keep going: one bad document must not stop the run

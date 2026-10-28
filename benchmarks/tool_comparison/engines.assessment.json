@@ -5,7 +5,9 @@
     "Output quality is unchanged where it was good: synthetic F1 0.94, handwritten note 96\u201397 %, phone photo handwriting 85\u201389 %. Precision against the text layer rose (0.82 \u2192 0.85 default layout, 0.89 \u2192 0.90 with PP-DocLayout-V3; Legislaturplan 0.83 \u2192 0.96) because the hallucinated loops, HTML tables and code fences are gone.",
     "The Legislaturplan's two text-free photo pages now come out empty with GLM-OCR, as with RapidOCR. One invention is left: with PP-DocLayout-V3, GLM-OCR describes the city photo on page 2 in one English paragraph (\u201cThis image presents an aerial view\u2026\u201d). The dashboard counts these photo pages as text pages only because earlier runs hallucinated on them, so the \u201cempty pages\u201d there are correct.",
     "RapidOCR + PP-DocLayout-V3 is identical to the previous run at threshold 0.3, confirming 0.3 is now the plugin default.",
-    "Recommendation: RapidOCR + PP-DocLayout-V3 for printed documents, scans, plans and photos with printed text; GLM-OCR + PP-DocLayout-V3 when handwriting matters. GLM-OCR can still misread words in a way that changes the meaning, see the \u201cWords not in reference\u201d tab."
+    "Recommendation: RapidOCR + PP-DocLayout-V3 for printed documents, scans, plans and photos with printed text; GLM-OCR + PP-DocLayout-V3 when handwriting matters. GLM-OCR can still misread words in a way that changes the meaning, see the \u201cWords not in reference\u201d tab.",
+    "October 2026, 96 documents on image v1.38.1: no candidate replaces the image's engines. Egret matches the default layout and shares its plan blind spot; Nemotron OCR v2 can't read German umlauts and needs torch 2.11; PP-OCRv6 is a small gain over RapidOCR on print; Nemotron 3.5 Parse and LightOnOCR-3-4B convert whole pages and are slower than GLM-OCR, LightOn by 10\u00d7.",
+    "GLM-OCR's tables (0.63) and headings (0.63) are low because the released plugin returns one cell per region; the unreleased line-level cells lift them to 0.84 and 0.94."
   ],
   "fixed-glm": {
     "cons": [
@@ -32,6 +34,108 @@
       "Same output as the published image."
     ],
     "verdict": "Previous local run (plugin 0.2.4, threshold set to 0.3)."
+  },
+  "glm-egret-large": {
+    "cons": [
+      "Plan blind spot (text-layer recall 0.76); tables 0.55 and headings 0.56 with the released plugin, worse than the default layout."
+    ],
+    "pros": [
+      "Handwriting as good as with the other layouts (96 % on the note)."
+    ],
+    "verdict": "No gain over GLM-OCR with PP-DocLayout-V3."
+  },
+  "nemotron-ocr": {
+    "cons": [
+      "English-only recogniser: umlauts and \u00df come out wrong or missing.",
+      "Needs torch 2.11, which makes the rest of the pipeline about 7\u00d7 slower in the same image.",
+      "XFUND recall 0.86."
+    ],
+    "pros": [
+      "Fastest configuration (187 s); tables 1.00.",
+      "Handwritten note 62 %, better than the other classic engines."
+    ],
+    "verdict": "Not usable for German text."
+  },
+  "nemotron-ocr-egret-large": {
+    "cons": [
+      "English-only recogniser: umlauts and \u00df come out wrong or missing.",
+      "Needs torch 2.11, which makes the rest of the pipeline about 7\u00d7 slower in the same image.",
+      "Egret's plan blind spot (text-layer recall 0.74)."
+    ],
+    "pros": [
+      "Fastest of all (179 s); synthetic F1 0.95."
+    ],
+    "verdict": "Not usable for German text."
+  },
+  "nemotron-ocr-pp": {
+    "cons": [
+      "English-only recogniser: umlauts and \u00df come out wrong or missing.",
+      "Needs torch 2.11, which makes the rest of the pipeline about 7\u00d7 slower in the same image.",
+      "XFUND precision 0.83."
+    ],
+    "pros": [
+      "Plans as good as RapidOCR + PP-DocLayout-V3 (text-layer 0.84 / 0.94)."
+    ],
+    "verdict": "Not usable for German text."
+  },
+  "pp-ocrv6": {
+    "cons": [
+      "Can't read handwriting (37 % on the note)."
+    ],
+    "pros": [
+      "Better than RapidOCR on the administrative documents (F1 0.94 against 0.93) and XFUND (0.91 / 0.94 against 0.90 / 0.93) at the same speed."
+    ],
+    "verdict": "A small upgrade over RapidOCR for print; already in the image as docling-pp-ocrv6."
+  },
+  "pp-ocrv6-egret-large": {
+    "cons": [
+      "Egret's plan blind spot (text-layer recall 0.75)."
+    ],
+    "pros": [
+      "Same quality as PP-OCRv6 with the default layout."
+    ],
+    "verdict": "No gain from Egret."
+  },
+  "pp-ocrv6-pp": {
+    "cons": [
+      "Headings 0.87 (PP-DocLayout-V3 labels some headings as text); XFUND precision 0.87 because forms become tables and the export repeats spanned cells.",
+      "Can't read handwriting (39 % on the note)."
+    ],
+    "pros": [
+      "Best classic-OCR configuration on plans and administrative documents (text-layer 0.84 / 0.94, admin F1 0.95)."
+    ],
+    "verdict": "Best choice without a VLM."
+  },
+  "rapidocr-egret-large": {
+    "cons": [
+      "Misses most plan text like the default layout (text-layer recall 0.74 against 0.84 with PP-DocLayout-V3).",
+      "No gain over the default layout model; larger Egret models gain nothing."
+    ],
+    "pros": [
+      "Same tables and headings as the default layout; synthetic F1 0.93\u20130.94.",
+      "Fastest RapidOCR configuration (234 s)."
+    ],
+    "verdict": "No reason to switch from the default layout; PP-DocLayout-V3 stays the layout for plans."
+  },
+  "rapidocr-egret-medium": {
+    "cons": [
+      "Misses most plan text like the default layout (text-layer recall 0.73 against 0.84 with PP-DocLayout-V3).",
+      "No gain over the default layout model; larger Egret models gain nothing."
+    ],
+    "pros": [
+      "Same tables and headings as the default layout; synthetic F1 0.93\u20130.94."
+    ],
+    "verdict": "No reason to switch from the default layout; PP-DocLayout-V3 stays the layout for plans."
+  },
+  "rapidocr-egret-xlarge": {
+    "cons": [
+      "Misses most plan text like the default layout (text-layer recall 0.72 against 0.84 with PP-DocLayout-V3).",
+      "No gain over the default layout model; larger Egret models gain nothing."
+    ],
+    "pros": [
+      "Same tables and headings as the default layout; synthetic F1 0.93\u20130.94."
+    ],
+    "verdict": "No reason to switch from the default layout; PP-DocLayout-V3 stays the layout for plans."
   },
   "release-glm": {
     "cons": [
@@ -75,5 +179,26 @@
       "Scanned pages and text in screenshots complete; photo: 44 % handwriting, 57 % printed text. No invented text."
     ],
     "verdict": "Recommended default for printed documents, scans, plans and photos with printed text."
+  },
+  "vlm-lighton-ocr-3": {
+    "cons": [
+      "4'949 s: about 10\u00d7 slower than GLM-OCR, up to 6 minutes per pass on a long PDF.",
+      "No table structure (tables 0.00); synthetic F1 0.69; XFUND precision 0.68 because it adds and repeats text."
+    ],
+    "pros": [
+      "Best handwriting and photo reader (note 100 %, XFUND recall 0.98)."
+    ],
+    "verdict": "Too slow and unstructured for the pipeline."
+  },
+  "vlm-nemotron-parse": {
+    "cons": [
+      "Converts every page with the VLM: 538 s, slower than GLM-OCR per region.",
+      "Large plan drawings come back empty (output length limit, partial_success); text-layer precision 0.80.",
+      "Invents text on short handwriting lines (OCR suite)."
+    ],
+    "pros": [
+      "Tables 1.00 and headings 0.95 on the synthetic set; handwritten note 93 %."
+    ],
+    "verdict": "Not better than GLM-OCR with PP-DocLayout-V3, and slower."
   }
 }
