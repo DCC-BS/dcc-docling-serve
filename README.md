@@ -329,6 +329,25 @@ but is dropped again on the way out.
 If a wrapped docling function is missing (renamed upstream), the patch logs a
 warning and does nothing; conversions keep working, without the field.
 
+## List markers: Word's Symbol and Wingdings bullets
+
+Word draws list bullets in the Symbol or Wingdings font. A PDF exported from Word
+often has no Unicode mapping for them, so its text layer holds the font's
+private-use code point instead of a bullet (U+F0B7 for Symbol's "•", U+F0A7 for
+Wingdings' "▪", …). docling does not know these as bullets: the list item keeps
+the character in its text and the markdown reads `-  Text` with an invisible
+character after the dash.
+
+The image ships `plugins/list_bullets.py`, installed into site-packages as
+`dcc_list_bullets.py` plus a `.pth` file, like the health-log muting. It adds the
+private-use bullets of Symbol and Wingdings to docling's list-marker patterns, so
+the marker is split off like any other bullet and recorded in `ListItem.marker` as
+the bullet it stands for (U+F0B7 → "•").
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `DCC_LIST_BULLETS` | Set to `0`/`false`/`no` to leave docling's list markers as upstream has them | `1` |
+
 ## Python SDK usage
 
 The plugins can also be used directly with the docling Python SDK (without docling-serve). See `examples/convert_with_plugins.py`:
@@ -420,6 +439,9 @@ The CI workflow runs these as read-only checks.
 ```bash
 make test
 ```
+
+`tests/unit` covers the patches in `plugins/` against the docling installed in the
+dev environment; `tests/e2e` needs a running stack and is skipped without one.
 
 ### Smoke test (local SDK)
 

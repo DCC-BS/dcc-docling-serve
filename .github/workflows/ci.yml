@@ -33,6 +33,9 @@ jobs:
       - name: Ruff format check
         run: uv run ruff format --check .
 
+      - name: Unit tests
+        run: uv run python -m pytest tests/unit
+
       - name: Test document conversion execution with plugins
         run: |
           uv run python -c '
