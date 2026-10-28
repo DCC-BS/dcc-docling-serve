@@ -118,6 +118,10 @@ def main() -> None:
         def convert(doc):
             runs = [convert_once(doc) for _ in range(args.repeats)]
             out = runs[0]
+            # A partial result in any repeat flags the document: the median includes that run
+            partial = [r["meta"] for r in runs if r["meta"]["docling_status"] == "partial_success"]
+            if partial:
+                out["meta"] |= {"docling_status": "partial_success", "docling_errors": partial[0]["docling_errors"]}
             server = [r["meta"]["server_processing_s"] for r in runs if r["meta"]["server_processing_s"] is not None]
             out["meta"] |= {
                 "server_processing_s": statistics.median(server) if server else None,

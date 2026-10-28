@@ -452,6 +452,9 @@ variants run one after another. Each one gets a cold conversion to load its mode
 then converts every document `--repeats` times with the options in `OPTIONS`.
 Results (raw JSONL plus `summary.md` with per-stage timings) go to `benchmarks/results/`.
 
+The examples time the private documents in `benchmarks/internal/docs` (see below). Without
+them, point `--docs` at `benchmarks/tool_comparison/synthetic`.
+
 ```bash
 uv run --script benchmarks/e2e_timing.py --docs benchmarks/internal/docs
 uv run --script benchmarks/e2e_timing.py --docs benchmarks/internal/docs --variants official-cu130 custom-cu130 --repeats 1

@@ -428,7 +428,7 @@ def main() -> None:
                         **bag_scores(out_tokens, [t for text in reference["parts"].values() for t in tokens(text)]),
                         "parts": {name: snippet_recall(text, counter) for name, text in reference["parts"].items()},
                     }
-                    known = set(ref_tokens)
+                    known = known | set(ref_tokens) if has_gt else set(ref_tokens)
                 if config.get("extra_words") and (has_gt or reference):
                     extra = Counter(t for t in out_tokens if t not in known)
                     closest = closest_words(list(extra), sorted(known))

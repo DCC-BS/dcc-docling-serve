@@ -4,6 +4,9 @@
 # ///
 """Convert the documents with the hosted Jina Reader API (uploads every document to r.jina.ai).
 
+Private documents (benchmarks/internal) must not leave the machine, so by default only the
+synthetic set is uploaded; --docs sends other folders.
+
 The API key is read from the jina_key entry of the .env file in the repository parent folder,
 or from the JINA_KEY environment variable.
 
@@ -14,7 +17,7 @@ import os
 import re
 
 import httpx
-from common import HERE, Recorder, list_docs, parser
+from common import HERE, INTERNAL_DOCS, Recorder, list_docs, parser
 
 
 def api_key() -> str:
@@ -30,7 +33,11 @@ def api_key() -> str:
 
 
 def main() -> None:
-    args = parser(__doc__).parse_args()
+    cli = parser(__doc__)
+    cli.set_defaults(docs=[HERE / "synthetic"])
+    args = cli.parse_args()
+    if any(INTERNAL_DOCS.resolve() in (d.resolve(), *d.resolve().parents) for d in args.docs):
+        raise SystemExit(f"{INTERNAL_DOCS} holds private documents; they are not uploaded to Jina")
     recorder = Recorder("jina", args.results, args.force)
     docs = list_docs(args.docs, args.only)
     client = httpx.Client(

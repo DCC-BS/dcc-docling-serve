@@ -111,7 +111,9 @@ gpu_processes() {  # compute processes on GPU index $1
     uuid=$(nvidia-smi -i "$1" --query-gpu=uuid --format=csv,noheader)
     nvidia-smi --query-compute-apps=gpu_uuid,pid,process_name,used_memory --format=csv,noheader | grep "^$uuid" || true
 }
-for gpu in $(printf '%s\n' "$DOCLING_GPU" "$VLLM_GPU" | sort -u); do
+GPUS=("$DOCLING_GPU")
+any_wanted release-glm release-glm-pp glm-egret-large vlm-nemotron-parse vlm-lighton-ocr-3 && GPUS+=("$VLLM_GPU")
+for gpu in $(printf '%s\n' "${GPUS[@]}" | sort -u); do
     busy=$(gpu_processes "$gpu")
     if [[ -n "$busy" && "$ALLOW_BUSY_GPU" != 1 ]]; then
         log "GPU $gpu is in use; stop these or set ALLOW_BUSY_GPU=1:"$'\n'"$busy"
@@ -190,4 +192,4 @@ if wanted vlm-lighton-ocr-3; then
 fi
 stop_vllm
 
-uv run --script build_dashboard.py --config engines.config.json --results "$RESULTS"
+uv run --script build_dashboard.py --config engines.config.json --results "$RESULTS" --docs "${DOCS[@]}"

@@ -390,6 +390,7 @@ document.addEventListener("keydown", (ev) => {
     const id = selected && selected.id; items = JSON.parse(prev); selected = items.find((i) => i.id === id) || null; store(); render(); return;
   }
   if (typing) { if (ev.key === "Escape") document.activeElement.blur(); return; }
+  if (ev.ctrlKey || ev.metaKey || ev.altKey) return;  // browser shortcuts (reload, find, back)
   const step = ev.shiftKey ? 5 : 0.5;
   const nudge = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[ev.key];
   if (nudge && selected) { ev.preventDefault(); change((it) => { it.cx += nudge[0]; it.cy += nudge[1]; }); return; }
@@ -429,12 +430,22 @@ $("export").onclick = exportAll;
 $("import").onclick = () => $("file").click();
 $("file").onchange = async () => {
   const f = $("file").files[0]; if (!f) return;
-  const data = JSON.parse(await f.text());
-  for (const [file, doc] of Object.entries(data.documents || {})) {
-    const list = doc.instances.map((it) => ({ text: it.text, category: it.category, cx: it.cx, cy: it.cy, w: it.w, h: it.h, angle: it.angle || 0, reviewed: !!it.reviewed, flagged: false, source: "imported" }));
-    try { localStorage.setItem(KEY(file), JSON.stringify(list)); } catch (e) { /* ignore */ }
+  try {
+    const data = JSON.parse(await f.text());
+    const known = new Set(DATA.plans.map((p) => p.file));
+    const docs = Object.entries(data.documents || {}).filter(([file, doc]) => known.has(file) && Array.isArray(doc.instances));
+    if (!docs.length) { alert("The file has no boxes for the documents in this editor."); return; }
+    if (!confirm(`Replace the edits of ${docs.length} document(s) with the imported boxes?`)) return;
+    for (const [file, doc] of docs) {
+      const list = doc.instances.map((it) => ({ text: it.text, category: it.category, cx: it.cx, cy: it.cy, w: it.w, h: it.h, angle: it.angle || 0, reviewed: !!it.reviewed, flagged: false, source: "imported" }));
+      try { localStorage.setItem(KEY(file), JSON.stringify(list)); } catch (e) { /* ignore */ }
+    }
+    load(+$("plan").value);
+  } catch (e) {
+    alert("Import failed: " + e.message);
+  } finally {
+    $("file").value = "";  // the same file can be picked again
   }
-  load(+$("plan").value); $("file").value = "";
 };
 $("reset").onclick = () => {
   if (!confirm("Discard all edits for this document and go back to the suggestions?")) return;

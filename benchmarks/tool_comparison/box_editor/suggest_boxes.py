@@ -161,7 +161,7 @@ def category(text: str, box: tuple[float, float, float, float], width: float, he
     if re.fullmatch(r"[-±]?\d+([.,]\d+)?[⁰-⁹]*°?", text):
         return "Dimension"
     if not large:
-        return "Header / footer" if cy < 0.12 or cy > 0.93 else "Map label"
+        return "Header / footer" if cy < 0.12 else "Map label"
     return "Label"
 
 
