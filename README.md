@@ -452,9 +452,12 @@ variants run one after another. Each one gets a cold conversion to load its mode
 then converts every document `--repeats` times with the options in `OPTIONS`.
 Results (raw JSONL plus `summary.md` with per-stage timings) go to `benchmarks/results/`.
 
+The examples time the private documents in `benchmarks/internal/docs` (see below). Without
+them, point `--docs` at `benchmarks/tool_comparison/synthetic`.
+
 ```bash
-uv run --script benchmarks/e2e_timing.py --docs ../test-docs
-uv run --script benchmarks/e2e_timing.py --docs ../test-docs --variants official-cu130 custom-cu130 --repeats 1
+uv run --script benchmarks/e2e_timing.py --docs benchmarks/internal/docs
+uv run --script benchmarks/e2e_timing.py --docs benchmarks/internal/docs --variants official-cu130 custom-cu130 --repeats 1
 ```
 
 ## Converter comparison
@@ -476,6 +479,17 @@ Note that the Jina runner uploads every document to r.jina.ai.
 `build_dashboard.py` reads what to compare from a JSON config: tools and labels, results
 folder, documents, assessment file and page texts. With no `--config` it uses
 `converters.config.json`, which builds the dashboard above.
+
+### Private test documents
+
+The test documents themselves are not in this repository. Put internal documents into
+`benchmarks/internal/docs/`: git ignores everything in `benchmarks/internal/` except its
+README, and a pre-commit hook rejects files added there by force. Without that folder the
+benchmarks still run, on the synthetic documents, `data/ocr.png` and the public XFUND forms.
+[`benchmarks/internal/README.md`](benchmarks/internal/README.md) says what to add for each
+kind of document (nothing, a transcription in `benchmarks/internal/references.json`, or a
+hand-checked `<name>.gt.md`), and how the box editor in `tool_comparison/box_editor/`
+records where each line of text stands on the page.
 
 ### OCR engine × layout model
 
@@ -512,15 +526,89 @@ With docling-glm-ocr 0.5.1 the two GLM-OCR runs took 2'745 s and 2'701 s: the pl
 every born-digital page as a full page. The text-free photos in the Legislaturplan now come
 out empty, except for one invented English description of the city photo with PP-DocLayout-V3.
 
-Each configuration is a `run_docling.py` run whose `--tool` matches an id in the config
-(`release-rapidocr`, `release-rapidocr-pp`, `release-glm`, `release-glm-pp`, and the
-earlier `fixed-rapidocr-pp-t03`, `fixed-glm`, `fixed-glm-pp-t03`), with `--results`
-pointing at one shared folder. Then build and serve:
+The config also lists candidates that are not in the image yet:
+
+- Nemotron OCR v2 (docling's built-in `nemotron-ocr` engine) with each layout model
+- docling's Egret layout models (medium, large, xlarge) with RapidOCR, and Egret large with
+  Nemotron OCR and GLM-OCR
+- PP-OCRv6 (our `docling-pp-ocrv6` plugin) with each layout model
+- Nemotron 3.5 Parse and LightOnOCR-3-4B on the whole page through docling's VLM pipeline,
+  with the presets in `benchmarks/tool_comparison/vlm_presets.json`
+
+#### Candidates tested in October 2026
+
+96 documents: the 25 test documents, 21 synthetic documents (17 of them administrative: forms,
+invoices, receipts, scans and phone photos) and 50 German forms from the public XFUND set
+(`fetch_public.py`; CC BY-NC-SA, internal use only). Image v1.38.1 on an RTX 4090, three timed
+repeats after a warm-up. The GLM-OCR rows use the released docling-glm-ocr 0.5.2.
+
+| Configuration | Time | Synthetic F1 | Tables | Headings | XFUND recall / precision | Text-layer recall / precision | Handwritten note |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| RapidOCR + default layout | 237 s | 0.94 | 0.98 | 1.00 | 0.90 / 0.93 | 0.76 / 0.92 | 31 % |
+| RapidOCR + PP-DocLayout-V3 | 307 s | 0.94 | 0.99 | 0.89 | 0.86 / 0.85 | 0.84 / 0.94 | 27 % |
+| GLM-OCR + default layout | 458 s | 0.94 | 0.63 | 0.63 | 0.91 / 0.97 | 0.76 / 0.86 | 98 % |
+| GLM-OCR + PP-DocLayout-V3 | 482 s | 0.95 | 0.64 | 0.56 | 0.89 / 0.97 | 0.85 / 0.91 | 98 % |
+| RapidOCR + Egret medium | 243 s | 0.93 | 0.99 | 1.00 | 0.89 / 0.91 | 0.73 / 0.92 | 31 % |
+| RapidOCR + Egret large | 234 s | 0.94 | 0.99 | 1.00 | 0.89 / 0.93 | 0.74 / 0.91 | 31 % |
+| RapidOCR + Egret xlarge | 231 s | 0.94 | 0.99 | 0.98 | 0.89 / 0.94 | 0.72 / 0.92 | 31 % |
+| PP-OCRv6 + default layout | 256 s | 0.95 | 0.99 | 0.98 | 0.91 / 0.94 | 0.76 / 0.92 | 37 % |
+| PP-OCRv6 + PP-DocLayout-V3 | 328 s | 0.95 | 0.99 | 0.87 | 0.87 / 0.87 | 0.84 / 0.94 | 39 % |
+| PP-OCRv6 + Egret large | 255 s | 0.95 | 0.99 | 0.98 | 0.89 / 0.94 | 0.75 / 0.91 | 37 % |
+| Nemotron OCR v2 + default layout | 187 s | 0.94 | 1.00 | 1.00 | 0.86 / 0.90 | 0.76 / 0.88 | 62 % |
+| Nemotron OCR v2 + PP-DocLayout-V3 | 239 s | 0.95 | 1.00 | 0.89 | 0.85 / 0.83 | 0.84 / 0.94 | 61 % |
+| Nemotron OCR v2 + Egret large | 179 s | 0.95 | 1.00 | 1.00 | 0.86 / 0.91 | 0.74 / 0.91 | 62 % |
+| GLM-OCR + Egret large | 455 s | 0.95 | 0.55 | 0.56 | 0.89 / 0.97 | 0.76 / 0.84 | 96 % |
+| Nemotron 3.5 Parse (whole page) | 538 s | 0.93 | 1.00 | 0.95 | 0.89 / 0.91 | 0.78 / 0.80 | 93 % |
+| LightOnOCR-3-4B (whole page) | 4'949 s | 0.69 | 0.00 | 0.98 | 0.98 / 0.68 | 0.86 / 0.74 | 100 % |
+
+None of the candidates replaces what the image has. Their weaknesses:
+
+- **Egret (docling's layout models, medium/large/xlarge).** The same scores as docling's
+  default layout model, and the same blind spot: it misses most of the text on plans
+  (text-layer recall 0.72–0.75, against 0.84 with PP-DocLayout-V3). Larger Egret models gain
+  nothing. Only PP-DocLayout-V3 finds the plan labels.
+- **Nemotron OCR v2.** The fastest engine and good on print, but its recogniser is
+  English-only: umlauts and ß come out wrong or missing (XFUND precision 0.83–0.91). The
+  `nemotron-ocr` package needs torch 2.11, which makes RapidOCR, layout and TableFormer about
+  7× slower in the same image.
+- **PP-OCRv6.** Slightly better than RapidOCR on the administrative documents and on XFUND, at
+  the same speed. Like every classic OCR engine it can't read handwriting (37–39 % on the note).
+- **Nemotron 3.5 Parse.** Good tables and headings, but it converts every page with the VLM:
+  2× slower than GLM-OCR, precision on the text layer drops to 0.80, and on large plan
+  drawings it runs out of output tokens and returns an empty page (`partial_success`).
+- **LightOnOCR-3-4B.** The best reader of handwriting and photos, but 10× slower than GLM-OCR
+  (up to 6 minutes for one pass over a long PDF), no table structure at all, and low precision
+  (0.68 on XFUND) because it adds and repeats text.
+- **Not tested:** Chandra-OCR-2 and Indra-OCR (Datalab). Their weights use a modified
+  OpenRAIL-M licence that is free only for small companies.
+
+GLM-OCR's weak tables and headings come from the plugin, not the model: it returns one text
+cell per region, so docling can't build table cells or tell a heading from body text. The
+`fix/line-level-cells` branch of docling-glm-ocr gives each text line its own box and lifts
+tables to 0.84 and headings to 0.94; it is not released yet.
+
+`run_engines.sh` runs the whole matrix into `results/engines` and builds the dashboard. It runs
+every configuration in a test image built from `Dockerfile.engines`: the published image plus
+the Egret weights. The Nemotron OCR configurations use a second image that also has
+`nemotron-ocr`. That package is built against torch 2.11, so this image downgrades torch, and
+the downgrade makes RapidOCR about 7× slower on a scan. Nemotron OCR therefore can't go into
+the production image as it is. GLM-OCR and the two VLMs each get a
+vLLM container on `VLLM_GPU` while their configurations run:
+
+```bash
+benchmarks/tool_comparison/run_engines.sh                                    # all configurations
+ONLY="nemotron-ocr vlm-lighton-ocr-3" benchmarks/tool_comparison/run_engines.sh  # some of them
+VLLM_GPU=0 VLLM_MEMORY=0.3 benchmarks/tool_comparison/run_engines.sh             # on a shared GPU
+python3 -m http.server -d benchmarks/tool_comparison/results/engines/dashboard 8766
+```
+
+Each configuration is a `run_docling.py` run whose `--tool` matches an id in the config, with
+`--results` pointing at one shared folder. The earlier `fixed-rapidocr-pp-t03`, `fixed-glm`
+and `fixed-glm-pp-t03` runs are not part of `run_engines.sh`. To rebuild the dashboard alone:
 
 ```bash
 cd benchmarks/tool_comparison
 uv run --script build_dashboard.py --config engines.config.json --results <engine results>
-python3 -m http.server -d <engine results>/dashboard 8766
 ```
 
 Configurations or documents without results are left out; grid cells show "not run".
@@ -619,7 +707,7 @@ version (replace `v1.38.1` with the new tag). Build the image first (step 2) for
    (the CELEX regulation) should not be OCR-bound:
 
    ```bash
-   uv run --script benchmarks/e2e_timing.py --docs ../test-docs --tag v1.38.1 --variants official-cu130 custom-cu130 \
+   uv run --script benchmarks/e2e_timing.py --docs benchmarks/internal/docs --tag v1.38.1 --variants official-cu130 custom-cu130 \
      --image custom-cu130=dcc-docling-serve-test:cu130
    ```
 

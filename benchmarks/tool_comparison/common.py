@@ -9,6 +9,7 @@ Model loading is timed once per tool and written to <tool>/_setup.json.
 
 import argparse
 import json
+import os
 import sys
 import time
 import traceback
@@ -17,7 +18,9 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 SUPPORTED_SUFFIXES = {".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff"}
-DEFAULT_DOCS = [HERE.parents[2] / "test-docs", HERE / "synthetic"]
+# Private documents live in benchmarks/internal/docs (git-ignored, see its README); DCC_INTERNAL_DOCS moves them
+INTERNAL_DOCS = Path(os.environ.get("DCC_INTERNAL_DOCS", HERE.parent / "internal" / "docs"))
+DEFAULT_DOCS = [INTERNAL_DOCS, HERE / "synthetic"]
 DEFAULT_RESULTS = HERE / "results"
 
 
@@ -36,6 +39,7 @@ def list_docs(folders: list[Path], only: list[str] | None = None) -> list[Path]:
         (
             p
             for folder in folders
+            if folder.exists()  # an optional public set that was not fetched
             for p in (folder.iterdir() if folder.is_dir() else [folder])
             if p.suffix.lower() in SUPPORTED_SUFFIXES
         ),
@@ -77,7 +81,8 @@ class Recorder:
             t0 = time.perf_counter()
             try:
                 out = convert(doc)
-                seconds = time.perf_counter() - t0
+                # A runner that repeats the conversion reports its median itself
+                seconds = out.pop("seconds", None) or time.perf_counter() - t0
                 self.write(doc, seconds=seconds, **out)
                 log(f"{self.tool}: {doc.name} ok in {seconds:.1f}s")
             except Exception as error:  # keep going: one bad document must not stop the run

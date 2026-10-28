@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Box Ground Truth</title>
+<style>
+  :root {
+    --bg: #f6f6f4; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6b66; --line: #dcdcd6;
+    --accent: #1f5fbf; --warn: #c2410c; --ok: #15803d; --select: #e11d48;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+  #app { display: grid; grid-template-columns: 1fr 360px; height: 100vh; }
+  #stage { position: relative; overflow: hidden; background: #8a8a85; cursor: grab; touch-action: none; }
+  #stage.adding { cursor: crosshair; }
+  #stage svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #panel { background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+  h1 { font-size: 15px; margin: 0; }
+  h2 { font-size: 12px; margin: 0 0 6px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  section { border: 1px solid var(--line); border-radius: 6px; padding: 10px; }
+  label { display: block; margin: 6px 0 2px; color: var(--muted); font-size: 12px; }
+  input[type=text], input[type=number], select, textarea { width: 100%; font: inherit; padding: 5px 6px; border: 1px solid var(--line); border-radius: 4px; background: #fff; color: var(--ink); }
+  textarea { resize: vertical; min-height: 44px; }
+  button { font: inherit; padding: 5px 9px; border: 1px solid var(--line); border-radius: 4px; background: #fff; color: var(--ink); cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.danger { color: var(--warn); }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .stats { color: var(--muted); font-size: 12px; }
+  #list { max-height: 34vh; overflow-y: auto; border-top: 1px solid var(--line); margin-top: 6px; }
+  .item { display: flex; gap: 6px; align-items: baseline; padding: 3px 2px; border-bottom: 1px solid #f0f0ec; cursor: pointer; }
+  .item:hover { background: #f4f7fd; }
+  .item.sel { background: #fde7ec; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; transform: translateY(1px); }
+  .item .t { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item .m { color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .flag { color: var(--warn); }
+  .done { color: var(--ok); }
+  .tokens { font-size: 12px; max-height: 18vh; overflow-y: auto; word-break: break-word; }
+  .tokens span { display: inline-block; margin: 1px 4px 1px 0; padding: 0 4px; border-radius: 3px; background: #fff1e6; }
+  .tokens.extra span { background: #eef2ff; }
+  .hint { color: var(--muted); font-size: 11px; }
+  kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 3px; padding: 0 3px; background: #fafaf8; }
+  .handle { fill: #fff; stroke: var(--select); }
+  .box { fill: transparent; cursor: move; }
+  .box.flagged { stroke-dasharray: 4 3; }
+  .lbl { pointer-events: none; paint-order: stroke; stroke: #fff; stroke-width: 3px; fill: #111; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage"><svg id="svg"><g id="world"><image id="img"/><g id="boxes"></g><g id="handles"></g><rect id="draft" class="box" fill="none" stroke="#e11d48" vector-effect="non-scaling-stroke" display="none"/></g></svg></div>
+  <div id="panel">
+    <div>
+      <h1>Box Ground Truth</h1>
+      <div class="hint">One box per line of text, rotated with the text. Edits save in this browser; export to keep them.</div>
+    </div>
+    <section>
+      <label for="plan">Document</label>
+      <select id="plan"></select>
+      <div class="row" style="margin-top:8px">
+        <button id="fit" title="Fit page (F)">Fit</button>
+        <button id="add" title="Draw a new box (A)">Add box</button>
+        <label style="margin:0"><input type="checkbox" id="showText" checked> texts</label>
+        <label style="margin:0"><input type="checkbox" id="hideDone"> hide reviewed</label>
+      </div>
+      <div class="stats" id="stats" style="margin-top:6px"></div>
+    </section>
+    <section id="editor">
+      <h2>Selected box</h2>
+      <div id="none" class="hint">Click a box, or a line in the list.</div>
+      <div id="form" hidden>
+        <label for="text">Text</label>
+        <textarea id="text" rows="2"></textarea>
+        <label for="cat">Category</label>
+        <select id="cat"></select>
+        <div class="row">
+          <div style="flex:1"><label for="angle">Angle (°)</label><input type="number" id="angle" step="1"></div>
+          <div style="flex:1"><label>&nbsp;</label><label style="margin:6px 0"><input type="checkbox" id="reviewed"> reviewed</label></div>
+        </div>
+        <div class="hint" id="source" style="margin:6px 0"></div>
+        <div class="row">
+          <button id="ok" title="Mark reviewed, go to the next open box (R)">Reviewed → next</button>
+          <button id="dup" title="Duplicate (D)">Duplicate</button>
+          <button id="del" class="danger" title="Delete (Del)">Delete</button>
+        </div>
+      </div>
+    </section>
+    <section>
+      <h2>Boxes</h2>
+      <div class="row">
+        <select id="filter" style="flex:1"></select>
+        <input type="text" id="search" placeholder="search" style="flex:1">
+      </div>
+      <div id="list"></div>
+    </section>
+    <section>
+      <h2>Coverage against the transcription</h2>
+      <div class="hint">Words of the transcription with no box yet, and boxed words the transcription does not have.</div>
+      <label>Not boxed yet</label>
+      <div class="tokens" id="missing"></div>
+      <label>Not in the transcription</label>
+      <div class="tokens extra" id="extra"></div>
+    </section>
+    <section>
+      <h2>Save</h2>
+      <div class="row">
+        <button id="export">Export all (JSON)</button>
+        <button id="import">Import…</button>
+        <button id="reset" class="danger">Reset document</button>
+        <input type="file" id="file" accept=".json,application/json" hidden>
+      </div>
+      <div class="hint" style="margin-top:8px">
+        <kbd>A</kbd> add · <kbd>R</kbd> reviewed → next · <kbd>N</kbd> next flagged · <kbd>D</kbd> duplicate · <kbd>Del</kbd> delete ·
+        arrows nudge (<kbd>Shift</kbd> ×10) · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>F</kbd> fit · wheel zoom · drag empty space to pan ·
+        corners resize · round handle rotates (<kbd>Shift</kbd> free, else snaps to 90°)
+      </div>
+    </section>
+  </div>
+</div>
+<script>
+const DATA = /*DATA*/null;
+const COLORS = ["#1f5fbf","#7c3aed","#64748b","#0f766e","#b45309","#2563eb","#059669","#dc2626","#d97706","#db2777","#4d7c0f","#0891b2","#9333ea","#a16207"];
+const $ = (id) => document.getElementById(id);
+const svg = $("svg"), world = $("world"), boxesG = $("boxes"), handlesG = $("handles"), draft = $("draft");
+const color = (cat) => COLORS[Math.max(0, DATA.categories.indexOf(cat)) % COLORS.length];
+const KEY = (file) => "box-gt:" + file;
+
+let plan = null, items = [], selected = null, view = { s: 1, x: 0, y: 0 }, adding = false, undo = [], nextId = 1;
+
+function store() {
+  try { localStorage.setItem(KEY(plan.file), JSON.stringify(items)); } catch (e) { /* storage full or blocked */ }
+}
+function snapshot() { undo.push(JSON.stringify(items)); if (undo.length > 80) undo.shift(); }
+function withIds(list) { return list.map((it) => ({ ...it, id: nextId++ })); }
+
+function load(index) {
+  plan = DATA.plans[index];
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(KEY(plan.file)) || "null"); } catch (e) { saved = null; }
+  items = withIds(saved || plan.instances);
+  selected = null; undo = [];
+  const img = $("img");
+  img.setAttribute("href", plan.image);
+  img.setAttribute("width", plan.imageWidth);
+  img.setAttribute("height", plan.imageHeight);
+  fit(); render();
+}
+
+// ---- geometry: boxes are in page points (top-left origin), drawn in image pixels
+const k = () => plan.imageWidth / plan.pageWidth;
+const rad = (deg) => deg * Math.PI / 180;
+function toWorld(ev) {
+  const r = svg.getBoundingClientRect();
+  return { x: (ev.clientX - r.left - view.x) / view.s / k(), y: (ev.clientY - r.top - view.y) / view.s / k() };
+}
+function rotate(v, deg) { const a = rad(deg), c = Math.cos(a), s = Math.sin(a); return { x: v.x * c - v.y * s, y: v.x * s + v.y * c }; }
+function quad(it) {
+  return [[-1,-1],[1,-1],[1,1],[-1,1]].map(([sx, sy]) => {
+    const p = rotate({ x: sx * it.w / 2, y: sy * it.h / 2 }, it.angle || 0);
+    return [+(it.cx + p.x).toFixed(2), +(it.cy + p.y).toFixed(2)];
+  });
+}
+function applyView() { world.setAttribute("transform", `translate(${view.x},${view.y}) scale(${view.s})`); drawHandles(); }
+function fit() {
+  const r = svg.getBoundingClientRect();
+  view.s = Math.min(r.width / plan.imageWidth, r.height / plan.imageHeight) * 0.98;
+  view.x = (r.width - plan.imageWidth * view.s) / 2; view.y = (r.height - plan.imageHeight * view.s) / 2;
+  applyView();
+}
+function focusOn(it) {
+  const r = svg.getBoundingClientRect();
+  const want = Math.min(r.width / (it.w * k() * 6), r.height / (Math.max(it.h, 8) * k() * 14), 4);
+  view.s = Math.max(view.s, want);
+  view.x = r.width / 2 - it.cx * k() * view.s; view.y = r.height / 2 - it.cy * k() * view.s;
+  applyView();
+}
+
+// ---- drawing
+function visible(it) {
+  if ($("hideDone").checked && it.reviewed && it !== selected) return false;
+  const f = $("filter").value, q = $("search").value.trim().toLowerCase();
+  if (f === "flagged" && !it.flagged) return false;
+  if (f === "open" && it.reviewed) return false;
+  if (f.startsWith("cat:") && it.category !== f.slice(4)) return false;
+  if (q && !it.text.toLowerCase().includes(q)) return false;
+  return true;
+}
+function render() {
+  const K = k(), show = $("showText").checked;
+  boxesG.replaceChildren();
+  for (const it of items) {
+    if (!visible(it)) continue;
+    const g = document.createElementNS(svg.namespaceURI, "g");
+    g.setAttribute("transform", `translate(${it.cx * K},${it.cy * K}) rotate(${it.angle || 0})`);
+    const r = document.createElementNS(svg.namespaceURI, "rect");
+    r.setAttribute("x", -it.w * K / 2); r.setAttribute("y", -it.h * K / 2);
+    r.setAttribute("width", Math.max(it.w * K, 1)); r.setAttribute("height", Math.max(it.h * K, 1));
+    r.setAttribute("class", "box" + (it.flagged && !it.reviewed ? " flagged" : ""));
+    r.setAttribute("stroke", it === selected ? "#e11d48" : color(it.category));
+    r.setAttribute("stroke-width", it === selected ? 2.5 : (it.reviewed ? 1 : 1.6));
+    r.setAttribute("vector-effect", "non-scaling-stroke");
+    r.setAttribute("fill", it.reviewed ? "rgba(21,128,61,.06)" : "transparent");
+    r.dataset.id = it.id;
+    const title = document.createElementNS(svg.namespaceURI, "title");
+    title.textContent = `${it.text}\n${it.category}`;
+    r.appendChild(title);
+    g.appendChild(r);
+    if (show && it.h * K * view.s >= 6) {  // a label too small to read on screen only clutters the page
+      const t = document.createElementNS(svg.namespaceURI, "text");
+      t.setAttribute("class", "lbl");
+      t.setAttribute("x", -it.w * K / 2); t.setAttribute("y", -it.h * K / 2 - 2 / view.s);
+      t.setAttribute("font-size", Math.max(it.h * K * 0.55, 9 / view.s));
+      t.setAttribute("vector-effect", "non-scaling-stroke");
+      t.textContent = it.text;
+      g.appendChild(t);
+    }
+    boxesG.appendChild(g);
+  }
+  drawHandles(); renderList(); renderForm(); renderStats(); renderCoverage();
+}
+function drawHandles() {
+  handlesG.replaceChildren();
+  if (!selected || !plan) return;
+  const K = k(), it = selected, size = 9 / view.s;
+  const g = document.createElementNS(svg.namespaceURI, "g");
+  g.setAttribute("transform", `translate(${it.cx * K},${it.cy * K}) rotate(${it.angle || 0})`);
+  for (const [sx, sy, name] of [[-1,-1,"nw"],[1,-1,"ne"],[1,1,"se"],[-1,1,"sw"]]) {
+    const h = document.createElementNS(svg.namespaceURI, "rect");
+    h.setAttribute("x", sx * it.w * K / 2 - size / 2); h.setAttribute("y", sy * it.h * K / 2 - size / 2);
+    h.setAttribute("width", size); h.setAttribute("height", size);
+    h.setAttribute("class", "handle"); h.setAttribute("vector-effect", "non-scaling-stroke");
+    h.style.cursor = (name === "nw" || name === "se") ? "nwse-resize" : "nesw-resize";
+    h.dataset.handle = name;
+    g.appendChild(h);
+  }
+  const stemTop = -it.h * K / 2 - 26 / view.s;
+  const stem = document.createElementNS(svg.namespaceURI, "line");
+  stem.setAttribute("x1", 0); stem.setAttribute("y1", -it.h * K / 2); stem.setAttribute("x2", 0); stem.setAttribute("y2", stemTop);
+  stem.setAttribute("stroke", "#e11d48"); stem.setAttribute("vector-effect", "non-scaling-stroke");
+  g.appendChild(stem);
+  const rot = document.createElementNS(svg.namespaceURI, "circle");
+  rot.setAttribute("cx", 0); rot.setAttribute("cy", stemTop); rot.setAttribute("r", size / 1.6);
+  rot.setAttribute("class", "handle"); rot.setAttribute("vector-effect", "non-scaling-stroke");
+  rot.style.cursor = "grab"; rot.dataset.handle = "rot";
+  g.appendChild(rot);
+  handlesG.appendChild(g);
+}
+function renderList() {
+  const list = $("list");
+  list.replaceChildren();
+  for (const it of items) {
+    if (!visible(it)) continue;
+    const row = document.createElement("div");
+    row.className = "item" + (it === selected ? " sel" : "");
+    row.innerHTML = `<span class="dot" style="background:${color(it.category)}"></span><span class="t"></span><span class="m"></span>`;
+    row.querySelector(".t").textContent = it.text || "(empty)";
+    const m = row.querySelector(".m");
+    m.textContent = it.reviewed ? "✓" : (it.flagged ? "check" : "");
+    m.className = "m " + (it.reviewed ? "done" : (it.flagged ? "flag" : ""));
+    row.onclick = () => { select(it); focusOn(it); };
+    list.appendChild(row);
+    if (it === selected) row.scrollIntoView({ block: "nearest" });
+  }
+}
+function renderForm() {
+  $("none").hidden = !!selected; $("form").hidden = !selected;
+  if (!selected) return;
+  if (document.activeElement !== $("text")) $("text").value = selected.text;
+  $("cat").value = selected.category;
+  if (document.activeElement !== $("angle")) $("angle").value = Math.round((selected.angle || 0) * 10) / 10;
+  $("reviewed").checked = !!selected.reviewed;
+  $("source").textContent = "Suggested from: " + (selected.source || "drawn by hand");
+}
+function renderStats() {
+  const n = items.length, done = items.filter((i) => i.reviewed).length, flagged = items.filter((i) => i.flagged && !i.reviewed).length;
+  $("stats").innerHTML = `${n} boxes · <span class="done">${done} reviewed</span> · <span class="flag">${flagged} flagged open</span>`;
+}
+
+// ---- coverage: the scorer's tokens (NFKC, lower case, word characters)
+const tokens = (s) => (s.normalize("NFKC").toLowerCase().match(/[\p{L}\p{N}_]+/gu) || []);
+function bag(list) { const m = new Map(); for (const t of list) m.set(t, (m.get(t) || 0) + 1); return m; }
+function renderCoverage() {
+  const want = bag(tokens(Object.values(plan.parts).join(" ")));
+  const have = bag(items.flatMap((i) => tokens(i.text)));
+  const fill = (el, a, b) => {
+    el.replaceChildren();
+    const rows = [...a].map(([t, n]) => [t, n - (b.get(t) || 0)]).filter(([, d]) => d > 0).sort((x, y) => y[1] - x[1]);
+    if (!rows.length) { el.textContent = "none"; return; }
+    for (const [t, d] of rows) { const s = document.createElement("span"); s.textContent = d > 1 ? `${t} ×${d}` : t; el.appendChild(s); }
+  };
+  fill($("missing"), want, have); fill($("extra"), have, want);
+}
+
+// ---- editing
+function select(it) { selected = it; render(); }
+function change(fn) { if (!selected) return; snapshot(); fn(selected); store(); render(); }
+function nextOpen(flaggedOnly) {
+  const order = items.filter((i) => !i.reviewed && (!flaggedOnly || i.flagged) && visible(i));
+  if (!order.length) return;
+  const after = order.find((i) => items.indexOf(i) > items.indexOf(selected)) || order[0];
+  select(after); focusOn(after);
+}
+$("text").addEventListener("input", () => { if (selected) { selected.text = $("text").value.replace(/\s*\n\s*/g, " "); store(); renderList(); renderCoverage(); render(); } });
+$("text").addEventListener("focus", snapshot);
+$("cat").addEventListener("change", () => change((it) => { it.category = $("cat").value; }));
+$("angle").addEventListener("change", () => change((it) => { it.angle = +$("angle").value || 0; }));
+$("reviewed").addEventListener("change", () => change((it) => { it.reviewed = $("reviewed").checked; }));
+$("ok").onclick = () => { change((it) => { it.reviewed = true; }); nextOpen(false); };
+$("dup").onclick = () => { if (!selected) return; snapshot(); const c = { ...selected, id: nextId++, cy: selected.cy + selected.h * 1.2, reviewed: false, source: "duplicate" }; items.push(c); store(); select(c); };
+$("del").onclick = () => { if (!selected) return; snapshot(); items = items.filter((i) => i !== selected); selected = null; store(); render(); };
+
+// ---- pointer interaction
+let drag = null;
+svg.addEventListener("pointerdown", (ev) => {
+  const p = toWorld(ev), t = ev.target;
+  svg.setPointerCapture(ev.pointerId);
+  if (t.dataset.handle && selected) {
+    snapshot();
+    const it = selected;
+    if (t.dataset.handle === "rot") { drag = { kind: "rot", it }; return; }
+    const [sx, sy] = { nw: [-1,-1], ne: [1,-1], se: [1,1], sw: [-1,1] }[t.dataset.handle];
+    const off = rotate({ x: -sx * it.w / 2, y: -sy * it.h / 2 }, it.angle || 0);
+    drag = { kind: "resize", it, fixed: { x: it.cx + off.x, y: it.cy + off.y } };
+    return;
+  }
+  if (t.dataset.id) {
+    const it = items.find((i) => i.id === +t.dataset.id);
+    snapshot(); select(it);
+    drag = { kind: "move", it, start: p, cx: it.cx, cy: it.cy };
+    return;
+  }
+  if (adding) { drag = { kind: "draw", start: p }; draft.removeAttribute("display"); return; }
+  drag = { kind: "pan", sx: ev.clientX, sy: ev.clientY, vx: view.x, vy: view.y };
+  $("stage").style.cursor = "grabbing";
+});
+svg.addEventListener("pointermove", (ev) => {
+  if (!drag) return;
+  const p = toWorld(ev), K = k();
+  if (drag.kind === "pan") { view.x = drag.vx + ev.clientX - drag.sx; view.y = drag.vy + ev.clientY - drag.sy; applyView(); return; }
+  if (drag.kind === "move") { drag.it.cx = drag.cx + p.x - drag.start.x; drag.it.cy = drag.cy + p.y - drag.start.y; }
+  if (drag.kind === "resize") {
+    const it = drag.it, d = rotate({ x: p.x - drag.fixed.x, y: p.y - drag.fixed.y }, -(it.angle || 0));
+    it.w = Math.max(Math.abs(d.x), 0.5); it.h = Math.max(Math.abs(d.y), 0.5);
+    const c = rotate({ x: d.x / 2, y: d.y / 2 }, it.angle || 0);
+    it.cx = drag.fixed.x + c.x; it.cy = drag.fixed.y + c.y;
+  }
+  if (drag.kind === "rot") {
+    let a = Math.atan2(p.y - drag.it.cy, p.x - drag.it.cx) * 180 / Math.PI + 90;
+    if (a > 180) a -= 360;
+    if (!ev.shiftKey) a = Math.round(a / 90) * 90;
+    drag.it.angle = Math.round(a * 10) / 10;
+  }
+  if (drag.kind === "draw") {
+    const x = Math.min(p.x, drag.start.x) * K, y = Math.min(p.y, drag.start.y) * K;
+    draft.setAttribute("x", x); draft.setAttribute("y", y);
+    draft.setAttribute("width", Math.abs(p.x - drag.start.x) * K); draft.setAttribute("height", Math.abs(p.y - drag.start.y) * K);
+    return;
+  }
+  render();
+});
+svg.addEventListener("pointerup", (ev) => {
+  if (!drag) return;
+  if (drag.kind === "draw") {
+    draft.setAttribute("display", "none");
+    const p = toWorld(ev), w = Math.abs(p.x - drag.start.x), h = Math.abs(p.y - drag.start.y);
+    if (w > 1 && h > 1) {
+      snapshot();
+      const it = { id: nextId++, text: "", category: "Label", cx: (p.x + drag.start.x) / 2, cy: (p.y + drag.start.y) / 2, w, h, angle: 0, source: "drawn by hand", flagged: true, reviewed: false };
+      items.push(it); store(); select(it); $("text").focus();
+    }
+  } else if (drag.kind !== "pan") { store(); render(); }
+  drag = null; $("stage").style.cursor = "";
+});
+svg.addEventListener("wheel", (ev) => {
+  ev.preventDefault();
+  const r = svg.getBoundingClientRect(), mx = ev.clientX - r.left, my = ev.clientY - r.top;
+  const f = Math.exp(-ev.deltaY * 0.0015), s = Math.min(Math.max(view.s * f, 0.02), 12);
+  view.x = mx - (mx - view.x) * s / view.s; view.y = my - (my - view.y) * s / view.s; view.s = s;
+  applyView(); if ($("showText").checked) render();
+}, { passive: false });
+
+// ---- keyboard
+document.addEventListener("keydown", (ev) => {
+  const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName);
+  if ((ev.ctrlKey || ev.metaKey) && ev.key === "z" && !typing) {
+    ev.preventDefault();
+    const prev = undo.pop(); if (!prev) return;
+    const id = selected && selected.id; items = JSON.parse(prev); selected = items.find((i) => i.id === id) || null; store(); render(); return;
+  }
+  if (typing) { if (ev.key === "Escape") document.activeElement.blur(); return; }
+  if (ev.ctrlKey || ev.metaKey || ev.altKey) return;  // browser shortcuts (reload, find, back)
+  const step = ev.shiftKey ? 5 : 0.5;
+  const nudge = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[ev.key];
+  if (nudge && selected) { ev.preventDefault(); change((it) => { it.cx += nudge[0]; it.cy += nudge[1]; }); return; }
+  const key = ev.key.toLowerCase();
+  if (ev.key === "Delete" || ev.key === "Backspace") $("del").click();
+  else if (key === "a") $("add").click();
+  else if (key === "r") $("ok").click();
+  else if (key === "n") nextOpen(true);
+  else if (key === "d") $("dup").click();
+  else if (key === "f") fit();
+  else if (ev.key === "Escape") { selected = null; render(); }
+});
+
+// ---- toolbar, filters, export
+$("fit").onclick = fit;
+$("add").onclick = () => { adding = !adding; $("add").classList.toggle("on", adding); $("stage").classList.toggle("adding", adding); };
+$("showText").onchange = render; $("hideDone").onchange = render;
+$("search").oninput = render; $("filter").onchange = render;
+$("plan").onchange = () => load(+$("plan").value);
+function exportAll() {
+  const documents = {};
+  for (const p of DATA.plans) {
+    let list = p === plan ? items : null;
+    if (!list) { try { list = JSON.parse(localStorage.getItem(KEY(p.file)) || "null"); } catch (e) { list = null; } }
+    list = list || p.instances;
+    documents[p.file] = {
+      pageWidth: p.pageWidth, pageHeight: p.pageHeight, coordinates: "PDF points, top-left origin",
+      instances: list.map((it) => ({ page: 1, text: it.text, category: it.category, quad: quad(it),
+        cx: +it.cx.toFixed(2), cy: +it.cy.toFixed(2), w: +it.w.toFixed(2), h: +it.h.toFixed(2), angle: it.angle || 0, reviewed: !!it.reviewed })),
+    };
+  }
+  const blob = new Blob([JSON.stringify({ version: 1, categories: DATA.categories, documents }, null, 1)], { type: "application/json" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "boxes.json"; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+$("export").onclick = exportAll;
+$("import").onclick = () => $("file").click();
+$("file").onchange = async () => {
+  const f = $("file").files[0]; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    const known = new Set(DATA.plans.map((p) => p.file));
+    const docs = Object.entries(data.documents || {}).filter(([file, doc]) => known.has(file) && Array.isArray(doc.instances));
+    if (!docs.length) { alert("The file has no boxes for the documents in this editor."); return; }
+    if (!confirm(`Replace the edits of ${docs.length} document(s) with the imported boxes?`)) return;
+    for (const [file, doc] of docs) {
+      const list = doc.instances.map((it) => ({ text: it.text, category: it.category, cx: it.cx, cy: it.cy, w: it.w, h: it.h, angle: it.angle || 0, reviewed: !!it.reviewed, flagged: false, source: "imported" }));
+      try { localStorage.setItem(KEY(file), JSON.stringify(list)); } catch (e) { /* ignore */ }
+    }
+    load(+$("plan").value);
+  } catch (e) {
+    alert("Import failed: " + e.message);
+  } finally {
+    $("file").value = "";  // the same file can be picked again
+  }
+};
+$("reset").onclick = () => {
+  if (!confirm("Discard all edits for this document and go back to the suggestions?")) return;
+  try { localStorage.removeItem(KEY(plan.file)); } catch (e) { /* ignore */ }
+  load(+$("plan").value);
+};
+
+// ---- start
+for (const c of DATA.categories) { const o = document.createElement("option"); o.value = o.textContent = c; $("cat").appendChild(o); }
+for (const [v, t] of [["all", "all boxes"], ["open", "not reviewed"], ["flagged", "flagged (check)"], ...DATA.categories.map((c) => ["cat:" + c, c])]) {
+  const o = document.createElement("option"); o.value = v; o.textContent = t; $("filter").appendChild(o);
+}
+DATA.plans.forEach((p, i) => { const o = document.createElement("option"); o.value = i; o.textContent = p.file; $("plan").appendChild(o); });
+window.addEventListener("resize", () => plan && applyView());
+load(0);
+</script>
+</body>
+</html>

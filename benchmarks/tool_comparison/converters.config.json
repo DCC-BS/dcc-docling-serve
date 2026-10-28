@@ -5,7 +5,7 @@
     "right": "marker"
   },
   "docs": [
-    "../../../test-docs",
+    "../internal/docs",
     "synthetic"
   ],
   "heading": "PDF \u2192 Markdown converter comparison",

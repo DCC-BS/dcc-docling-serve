@@ -13,7 +13,7 @@ This script converts the documents with the benchmark pipeline (see local_doclin
 and records, per page, each cluster's reason, the resulting OCR calls, the rendered
 crop pixels and the OCR engine time.
 
-    uv run --script benchmarks/ocr_insights.py ../test-docs
+    uv run --script benchmarks/ocr_insights.py benchmarks/internal/docs
 """
 
 import argparse

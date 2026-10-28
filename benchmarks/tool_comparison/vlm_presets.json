@@ -1,0 +1,72 @@
+{
+  "lighton-ocr-3": {
+    "engine_options": {
+      "concurrency": 8,
+      "engine_type": "api",
+      "params": {
+        "max_tokens": 4096,
+        "model": "lightonai/LightOnOCR-3-4B",
+        "top_p": 0.9
+      },
+      "timeout": 600,
+      "url": "http://engines-vllm-lighton-ocr-3:8000/v1/chat/completions"
+    },
+    "max_size": 2048,
+    "model_spec": {
+      "api_overrides": {},
+      "default_repo_id": "lightonai/LightOnOCR-3-4B",
+      "extra_generation_config": {},
+      "max_new_tokens": 4096,
+      "name": "LightOnOCR-3-4B",
+      "prompt": "",
+      "response_format": "markdown",
+      "revision": "b71010f095dc3735de7ee6b9969bff8f8f50b39a",
+      "stop_strings": [],
+      "temperature": 0.2,
+      "trust_remote_code": false
+    },
+    "scale": 4.0
+  },
+  "nemotron-parse-3.5": {
+    "engine_options": {
+      "concurrency": 8,
+      "engine_type": "api",
+      "params": {
+        "max_tokens": 8744,
+        "model": "nemotron-parse",
+        "repetition_penalty": 1.1,
+        "skip_special_tokens": false,
+        "top_k": 1
+      },
+      "timeout": 600,
+      "url": "http://engines-vllm-nemotron-parse:8000/v1/chat/completions"
+    },
+    "model_spec": {
+      "api_overrides": {
+        "api": {
+          "params": {
+            "max_tokens": 8744,
+            "model": "nemotron-parse",
+            "repetition_penalty": 1.1,
+            "skip_special_tokens": false,
+            "top_k": 1
+          }
+        }
+      },
+      "default_repo_id": "nvidia/Nemotron-3.5-Parse",
+      "extra_generation_config": {},
+      "max_new_tokens": 8744,
+      "name": "Nemotron-3.5-Parse",
+      "prompt": "</s><s><predict_bbox><predict_classes><output_markdown><predict_text_in_pic>",
+      "response_format": "nemotron_parse_v3_5",
+      "revision": "e7ea79242a87ea0ad3919b672bfedb429a683206",
+      "stop_strings": [],
+      "supported_engines": [
+        "api",
+        "transformers"
+      ],
+      "temperature": 0.0,
+      "trust_remote_code": false
+    }
+  }
+}

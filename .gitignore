@@ -18,3 +18,7 @@ build/
 benchmarks/results/
 benchmarks/tool_comparison/results/
 benchmarks/list_eval/results/
+benchmarks/tool_comparison/public/
+# Private benchmark data (internal documents, their references and ground truth): never committed
+benchmarks/internal/*
+!benchmarks/internal/README.md

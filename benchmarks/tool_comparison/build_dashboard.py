@@ -5,7 +5,8 @@
 """Score every tool's markdown and build the comparison dashboard.
 
 Scores:
-  - synthetic documents: against the exact ground truth written by make_synthetic.py
+  - synthetic documents: against the exact ground truth written by make_synthetic.py; a private
+    document with a hand-made <name>.gt.md (and optional <name>.checks.json) beside it is scored the same way
     (body text F1, headings, tables, reading order, and recall per text source:
     chart labels, outlined text, bitmap text, scanned text)
   - real PDFs: against the PDF's own text layer (word recall / precision). Pages without a
@@ -20,7 +21,8 @@ What is compared comes from a JSON config (paths relative to the config file):
     results, docs, output        results folder, document folders or files, dashboard folder
                                  (default <results>/dashboard)
     template, assessment         HTML page and pros/cons file shown on the overview
-    references                   {file name: {description, parts: {name: text}}} (optional)
+    references                   file or list of files {file name: {description, parts: {name: text}}}
+                                 (optional; missing files are skipped)
     time                         "wall" (record seconds) or "server" (meta.server_processing_s)
     compare                      {left, right}: tools selected in the Compare tab
     matrix                       tool ids with engine/layout, shown as an engine x layout grid
@@ -59,6 +61,8 @@ SOURCE_LABELS = {
     "outlined_text": "Outlined text (vector paths)",
     "bitmap_text": "Text in embedded images",
     "scan_text": "Scanned page text",
+    "photo_text": "Photographed page text",
+    "handwriting": "Handwritten entries",
     "furniture": "Page header/footer",
 }
 PAGE_WIDTH_PX = 1100
@@ -178,8 +182,10 @@ def load_config(args: argparse.Namespace) -> dict:
     config["docs"] = args.docs or [resolve(d) for d in config["docs"]]
     config["output"] = args.output or resolve(config.get("output")) or config["results"] / "dashboard"
     config["template"] = resolve(config.get("template", "dashboard.html"))
-    for key in ("assessment", "references"):
+    for key in ("assessment",):
         config[key] = resolve(config.get(key))
+    references = config.get("references") or []
+    config["references"] = [resolve(r) for r in ([references] if isinstance(references, str) else references)]
     config["tools"] = {t["id"]: t for t in config["tools"]}
     return config
 
@@ -305,7 +311,11 @@ def main() -> None:
     (out_dir / "data" / "docs").mkdir(parents=True, exist_ok=True)
     outputs, setups = load_outputs(config["results"], tool_config), load_setups(config["results"], tool_config)
     tools = [t for t in tool_config if t in setups or any(t in o for o in outputs.values())]
-    references = json.loads(config["references"].read_text()) if config["references"] else {}
+    # Several files may contribute; a missing one (an optional public set not fetched) is skipped
+    references = {}
+    for path in config["references"]:
+        if path.exists():
+            references |= json.loads(path.read_text())
     synthetic_dir = HERE / "synthetic"
 
     doc_rows = []
@@ -315,8 +325,12 @@ def main() -> None:
         images, layer_texts = render_pages(doc, out_dir / "pages" / did)
         gt_path = synthetic_dir / f"{doc.stem}.gt.md"
         synthetic = gt_path.exists() and doc.parent.resolve() == synthetic_dir.resolve()
-        ground_truth = gt_path.read_text() if synthetic else None
-        checks = json.loads((synthetic_dir / f"{doc.stem}.checks.json").read_text()) if synthetic else []
+        if not synthetic:
+            gt_path = doc.parent / f"{doc.stem}.gt.md"  # a hand-made ground truth next to a private document
+        has_gt = gt_path.exists()
+        ground_truth = gt_path.read_text() if has_gt else None
+        checks_path = gt_path.parent / f"{doc.stem}.checks.json"
+        checks = json.loads(checks_path.read_text()) if has_gt and checks_path.exists() else []
         reference = references.get(doc.name)
         reference_md = (
             "\n\n".join(f"## {name}\n\n{text}" for name, text in reference["parts"].items()) if reference else None
@@ -392,7 +406,7 @@ def main() -> None:
                         entry["empty_text_pages"] = {
                             kind: [i + 1 for i in empty if page_kind[i] == kind] for kind in ("layer", "scan")
                         }
-                if synthetic:
+                if has_gt:
                     gt_tokens = tokens(to_plain(ground_truth))
                     counter = Counter(out_tokens)
                     by_source = {}
@@ -414,8 +428,8 @@ def main() -> None:
                         **bag_scores(out_tokens, [t for text in reference["parts"].values() for t in tokens(text)]),
                         "parts": {name: snippet_recall(text, counter) for name, text in reference["parts"].items()},
                     }
-                    known = set(ref_tokens)
-                if config.get("extra_words") and (synthetic or reference):
+                    known = known | set(ref_tokens) if has_gt else set(ref_tokens)
+                if config.get("extra_words") and (has_gt or reference):
                     extra = Counter(t for t in out_tokens if t not in known)
                     closest = closest_words(list(extra), sorted(known))
                     entry["extra_words"] = {
@@ -452,6 +466,7 @@ def main() -> None:
             "name": doc.name,
             "pages": len(images),
             "synthetic": synthetic,
+            "ground_truth": has_gt,
             "text_layer_pages": len(text_pages),
             "size_mb": doc.stat().st_size / 1e6,
             "tools": per_tool,

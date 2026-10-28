@@ -10,8 +10,10 @@ uv run --script run_docling.py --tool docling-gpu-ocr --image dcc-docling-serve-
 
 import json
 import os
+import statistics
 import subprocess
 import time
+from pathlib import Path
 
 import httpx
 from common import Recorder, list_docs, log, parser
@@ -29,6 +31,15 @@ OPTIONS = {
 }
 
 
+def stage_totals(timings: dict | None) -> dict:
+    """docling-serve reports every sample per stage; keep the count and the total."""
+    return {
+        name: {"count": item.get("count"), "total_s": sum(item.get("times") or [])}
+        for name, item in (timings or {}).items()
+        if isinstance(item, dict)
+    }
+
+
 def main() -> None:
     p = parser(__doc__)
     p.add_argument("--tool", required=True)
@@ -40,13 +51,16 @@ def main() -> None:
     p.add_argument("--gpu-device", default="0")
     p.add_argument("--port", type=int, default=5093)
     p.add_argument("--timeout", type=float, default=7200)
+    p.add_argument("--repeats", type=int, default=1, help="Convert every document this often and keep the median time")
+    p.add_argument("--warmup", type=Path, nargs="*", default=None,
+                   help="Untimed conversions before the run (default: the first document)")  # fmt: skip
     args = p.parse_args()
 
     recorder = Recorder(args.tool, args.results, args.force)
     docs = list_docs(args.docs, args.only)
     container = f"tool-comparison-{args.tool}-{os.getpid()}"
     command = ["docker", "run", "-d", "--rm", "--name", container, "-p", f"127.0.0.1:{args.port}:5001",
-               "--gpus", f"device={args.gpu_device}"]  # fmt: skip
+               "--gpus", f"device={args.gpu_device}", "-e", "DOCLING_DEBUG_PROFILE_PIPELINE_TIMINGS=true"]  # fmt: skip
     for item in args.env:
         command += ["-e", item]
     command += args.docker_arg
@@ -67,7 +81,7 @@ def main() -> None:
             time.sleep(1)
         startup = time.perf_counter() - t0
 
-        def convert(doc):
+        def convert_once(doc):
             t_start = time.perf_counter()
             with doc.open("rb") as handle:
                 response = client.post("/v1/convert/file/async", files={"files": (doc.name, handle)}, data=options)
@@ -86,17 +100,45 @@ def main() -> None:
             if body.get("status") not in ("success", "partial_success"):
                 raise RuntimeError(f"docling status {body.get('status')}: {body.get('errors')}")
             markdown = body["document"]["md_content"] or ""
+            if body.get("status") == "partial_success":
+                # Kept and scored, but flagged: docling dropped part of the document (pages, a VLM answer)
+                log(f"{doc.name}: partial_success: {body.get('errors')}")
             return {
                 "markdown": markdown.replace(PAGE_BREAK, "\n\n"),
                 "pages": markdown.split(PAGE_BREAK),
-                "meta": {"server_processing_s": body.get("processing_time"), "docling_status": body.get("status")},
+                "seconds": time.perf_counter() - t_start,
+                "meta": {
+                    "server_processing_s": body.get("processing_time"),
+                    "docling_status": body.get("status"),
+                    "docling_errors": body.get("errors") or None,
+                    "timings": stage_totals(body.get("timings")),
+                },
             }
 
-        # Load the models before timing anything.
+        def convert(doc):
+            runs = [convert_once(doc) for _ in range(args.repeats)]
+            out = runs[0]
+            # A partial result in any repeat flags the document: the median includes that run
+            partial = [r["meta"] for r in runs if r["meta"]["docling_status"] == "partial_success"]
+            if partial:
+                out["meta"] |= {"docling_status": "partial_success", "docling_errors": partial[0]["docling_errors"]}
+            server = [r["meta"]["server_processing_s"] for r in runs if r["meta"]["server_processing_s"] is not None]
+            out["meta"] |= {
+                "server_processing_s": statistics.median(server) if server else None,
+                "server_runs_s": server,
+                "wall_runs_s": [r["seconds"] for r in runs],
+                "load1": os.getloadavg()[0],
+            }
+            out["seconds"] = statistics.median(r["seconds"] for r in runs)
+            return out
+
+        # Load the models before timing anything; with --warmup, documents that reach every stage
         warm_t0 = time.perf_counter()
-        convert(docs[0])
+        for warm_doc in args.warmup or docs[:1]:
+            convert_once(warm_doc)
         recorder.setup(startup_s=startup, first_conversion_s=time.perf_counter() - warm_t0, image=args.image,
-                       env=args.env, options=args.option)  # fmt: skip
+                       env=args.env, options=args.option, repeats=args.repeats,
+                       warmup=[str(d) for d in args.warmup or docs[:1]])  # fmt: skip
         log(f"{args.tool}: healthy after {startup:.1f}s")
         recorder.run(docs, convert)
     finally:

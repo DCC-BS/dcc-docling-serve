@@ -23,7 +23,7 @@ from pathlib import Path
 import pypdfium2 as pdfium
 
 HERE = Path(__file__).parent
-TEST_DOCS = Path(os.environ.get("TEST_DOCS", HERE / "../../../test-docs"))
+TEST_DOCS = Path(os.environ.get("TEST_DOCS", HERE / "../internal/docs"))
 MARK = re.compile(r"^\s*(?:[•·▪▫◦○●■□►▸‣⁃✓✔→➢\-–—*]\s*|\(?(?:\d{1,2}|[a-zA-Z]|[ivxIVX]{2,5})[.)]\s*)")
 BULLET_LINE = re.compile(r"^\s*[•·▪◦●■‣⁃–]\s*\S")
 

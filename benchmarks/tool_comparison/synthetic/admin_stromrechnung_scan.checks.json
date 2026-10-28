@@ -1,0 +1,237 @@
+[
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Lea Muster"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Beispielweg 12"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "4051 Basel"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Rechnung Elektrizit\u00e4t"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Rechnungsnummer: 2026-0471183"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Rechnungsdatum: 03.02.2026"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Kundennummer: 300 145 922"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Z\u00e4hlernummer: 79 812 004"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Abrechnungsperiode: 01.01.2025 \u2013 31.12.2025"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Verbrauchsadresse: Beispielweg 12, 4051 Basel"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Energie Hochtarif 1'842 kWh 0.1520 279.98"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Energie Niedertarif 1'206 kWh 0.1240 149.54"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Netznutzung 3'048 kWh 0.0985 300.23"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Grundgeb\u00fchr 12 Mt. 4.50 54.00"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Abgaben an das Gemeinwesen 3'048 kWh 0.0230 70.10"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Netzzuschlag Bund 3'048 kWh 0.0230 70.10"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Total exkl. MWST 923.95"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "MWST 8.1 % 74.84"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Total inkl. MWST 998.79"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Ihr Verbrauch der letzten 12 Monate (kWh)"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Jan"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Feb"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "M\u00e4r"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Apr"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Mai"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Jun"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Jul"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Aug"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Sep"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Okt"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Nov"
+  },
+  {
+    "category": "scan_text",
+    "page": 1,
+    "text": "Dez"
+  },
+  {
+    "category": "furniture",
+    "page": 1,
+    "text": "Testdokument mit fiktiven Daten"
+  },
+  {
+    "category": "scan_text",
+    "page": 2,
+    "text": "Zahlung"
+  },
+  {
+    "category": "scan_text",
+    "page": 2,
+    "text": "Bitte \u00fcberweisen Sie den Betrag von CHF 998.79 bis zum 05.03.2026 mit dem untenstehenden Zahlteil. Bei Fragen zur Rechnung erreichen Sie uns von Montag bis Freitag."
+  },
+  {
+    "category": "scan_text",
+    "page": 2,
+    "text": "Empfangsschein"
+  },
+  {
+    "category": "scan_text",
+    "page": 2,
+    "text": "Zahlteil"
+  },
+  {
+    "category": "scan_text",
+    "page": 2,
+    "text": "CH44 3199 9123 0008 8901 2"
+  },
+  {
+    "category": "scan_text",
+    "page": 2,
+    "text": "21 00000 00003 13947 14300 09017"
+  },
+  {
+    "category": "scan_text",
+    "page": 2,
+    "text": "Rheinstrom Energie AG"
+  },
+  {
+    "category": "scan_text",
+    "page": 2,
+    "text": "Postfach"
+  },
+  {
+    "category": "scan_text",
+    "page": 2,
+    "text": "4002 Basel"
+  },
+  {
+    "category": "scan_text",
+    "page": 2,
+    "text": "Lea Muster"
+  },
+  {
+    "category": "scan_text",
+    "page": 2,
+    "text": "Beispielweg 12"
+  },
+  {
+    "category": "scan_text",
+    "page": 2,
+    "text": "4051 Basel"
+  },
+  {
+    "category": "scan_text",
+    "page": 2,
+    "text": "CHF 998.79"
+  },
+  {
+    "category": "furniture",
+    "page": 2,
+    "text": "Testdokument mit fiktiven Daten"
+  }
+]

@@ -1,0 +1,37 @@
+# Test images for the engine comparison (run_engines.sh). Not for production.
+#
+#   engines           our published docling-serve image plus docling's Egret layout weights
+#   engines-nemotron  engines plus docling's built-in Nemotron OCR v2 engine (ocr_preset nemotron-ocr)
+#
+#   docker build -f Dockerfile.engines --target engines -t dcc-docling-serve-test:v1.38.1-cu130-engines .
+#   docker build -f Dockerfile.engines --target engines-nemotron -t dcc-docling-serve-test:v1.38.1-cu130-nemotron .
+ARG BASE_IMAGE=ghcr.io/dcc-bs/dcc-docling-serve-cu130:v1.38.1
+FROM ${BASE_IMAGE} AS engines
+
+# docling's Egret layout models (layout_object_detection kind); docling-serve's artifacts path
+# rules out a download at runtime
+RUN for size in medium large xlarge; do \
+        docling-tools models download-hf-repo "docling-project/docling-layout-egret-${size}" \
+            -o "${DOCLING_SERVE_ARTIFACTS_PATH}" || exit 1; \
+    done \
+    && find "${DOCLING_SERVE_ARTIFACTS_PATH}" -name .cache -type d -prune -exec rm -rf {} +
+
+FROM engines AS engines-nemotron
+
+# nemotron-ocr 2.0.2 ships a CUDA extension built against torch 2.11, so torch goes down from the
+# image's version to 2.11 (CUDA 13, which docling's engine requires). This makes RapidOCR, layout
+# and table structure about 7x slower, so only the Nemotron OCR configurations use this image.
+ARG NEMOTRON_OCR_VERSION=2.0.2
+RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cu130 \
+        "nemotron-ocr==${NEMOTRON_OCR_VERSION}" "torch==2.11.*" "torchvision==0.26.*" \
+    && SP="$(python -c 'import sysconfig; print(sysconfig.get_paths()["platlib"])')" \
+    && cp -f "$SP/nvidia/cu13/lib/libcudart.so.13" "$(ls "$SP"/nemotron_ocr.libs/libcudart-*.so*)"
+# ^ The wheel's vendored libcudart fails to load on this image's glibc 2.34 ("ELF load command
+#   address/offset not properly aligned"); the CUDA 13 runtime that comes with torch works in its place
+
+# docling-serve sets an artifacts path, so the engine reads the checkpoints from there and never
+# downloads them itself. download_models pins the revision docling was tested with.
+RUN python -c "import os; from pathlib import Path; \
+from docling.models.stages.ocr.nemotron_ocr_model import NemotronOcrModel, nemotron_ocr_model_dir; \
+NemotronOcrModel.download_models(Path(os.environ['DOCLING_SERVE_ARTIFACTS_PATH']) / nemotron_ocr_model_dir())" \
+    && find "${DOCLING_SERVE_ARTIFACTS_PATH}" -name .cache -type d -prune -exec rm -rf {} +

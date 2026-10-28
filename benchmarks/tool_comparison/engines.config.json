@@ -5,9 +5,10 @@
     "right": "release-glm-pp"
   },
   "docs": [
-    "../../../test-docs",
+    "../internal/docs",
     "synthetic",
-    "../../data/ocr.png"
+    "../../data/ocr.png",
+    "public/xfund_de"
   ],
   "extra_words": true,
   "heading": "OCR engine \u00d7 layout model comparison in docling-serve",
@@ -15,10 +16,23 @@
     "release-rapidocr",
     "release-rapidocr-pp",
     "release-glm",
-    "release-glm-pp"
+    "release-glm-pp",
+    "rapidocr-egret-medium",
+    "rapidocr-egret-large",
+    "rapidocr-egret-xlarge",
+    "nemotron-ocr",
+    "nemotron-ocr-pp",
+    "nemotron-ocr-egret-large",
+    "glm-egret-large",
+    "vlm-nemotron-parse",
+    "vlm-lighton-ocr-3",
+    "pp-ocrv6",
+    "pp-ocrv6-pp",
+    "pp-ocrv6-egret-large"
   ],
   "method": [
-    "<b>Setup</b>: every configuration runs in our published image <code>ghcr.io/dcc-bs/dcc-docling-serve-cu130:v1.35.0</code> (docling-serve v1.35.0, docling-glm-ocr 0.5.2, docling-pp-doc-layout 0.2.5) on the same RTX 4090 with the same options (table_mode accurate, ocr_lang de, pdf_backend docling_parse, markdown with image placeholders, a page-break placeholder to split pages). Only the OCR engine and the layout model change. RapidOCR runs on onnxruntime GPU with the shape patch active; GLM-OCR is the zai-org/GLM-OCR vision-language model served by vLLM 0.29 and called per region.",
+    "<b>Setup</b>: every configuration runs in the test image built by <code>run_engines.sh</code> from <code>Dockerfile.engines</code>: our published image <code>ghcr.io/dcc-bs/dcc-docling-serve-cu130:v1.38.1</code> (docling-serve v1.38.1, docling-glm-ocr 0.5.2, docling-pp-doc-layout 0.2.6) plus the Egret layout weights. The Nemotron OCR configurations run in a second image that adds Nemotron OCR v2 2.0.2 and torch 2.11, which it is built against; that torch makes the rest of the pipeline (layout, table structure) slower, so their times are not directly comparable. One GPU, the same options for all (table_mode accurate, ocr_lang de, pdf_backend docling_parse, markdown with image placeholders, a page-break placeholder to split pages); only the OCR engine and the layout model change. RapidOCR runs on onnxruntime GPU with the shape patch active. GLM-OCR is zai-org/GLM-OCR served by vLLM 0.30 and called per region. Nemotron OCR v2 gets <code>ocr_lang iso:de</code>, which docling routes to its English recognizer: NVIDIA validates no other Latin-script language.",
+    "<b>Full-page VLM configurations</b>: Nemotron 3.5 Parse (vLLM 0.26 with NVIDIA's plugin, FlashAttention 3 flag left out on non-Hopper GPUs) and LightOnOCR-3-4B (vLLM 0.31) replace layout, OCR and table structure with one model that reads the whole page, through docling's VLM pipeline and the presets in <code>vlm_presets.json</code>. Their layout column reads <i>VLM (full page)</i>.",
     "<b>Plugin versions</b>: the published image has docling-pp-doc-layout 0.2.5 (raw layout clusters, so scanned pages get OCR'd; confidence threshold 0.3 by default) and docling-glm-ocr 0.5.2 (full-page fallback only on pages without PDF text, repetition-loop guard, output cap per crop, HTML tables and code fences cleaned up). The <i>Previous vs published</i> tab compares it with the earlier local runs: docling-glm-ocr 0.5.1 with docling-pp-doc-layout 0.2.4 at threshold 0.3.",
     "<b>Timing</b>: server-side conversion time reported by docling-serve (<code>processing_time</code>), models already loaded; wall time (upload to result download) where the server did not report it. For GLM-OCR this includes the calls to the vLLM server.",
     "<b>Synthetic documents</b>: generated with exact ground truth. <i>Body F1</i> compares the words of the output with the ground-truth markdown; <i>Headings</i>, <i>Tables</i>, <i>Order</i> and <i>Noise</i> as in the converter comparison. The text-source table tags every snippet by how it is stored in the PDF (real text, vector outlines, embedded image, scan).",
@@ -61,7 +75,11 @@
     }
   ],
   "pairs_tab": "Previous vs published",
-  "references": "references.json",
+  "references": [
+    "references.json",
+    "../internal/references.json",
+    "public/xfund_de.references.json"
+  ],
   "results": "results/engines",
   "template": "dashboard.html",
   "time": "server",
@@ -91,6 +109,78 @@
       "id": "release-glm-pp",
       "label": "GLM-OCR + PP-DocLayout-V3",
       "layout": "PP-DocLayout-V3"
+    },
+    {
+      "engine": "RapidOCR",
+      "id": "rapidocr-egret-medium",
+      "label": "RapidOCR + Egret medium",
+      "layout": "Egret medium"
+    },
+    {
+      "engine": "RapidOCR",
+      "id": "rapidocr-egret-large",
+      "label": "RapidOCR + Egret large",
+      "layout": "Egret large"
+    },
+    {
+      "engine": "RapidOCR",
+      "id": "rapidocr-egret-xlarge",
+      "label": "RapidOCR + Egret xlarge",
+      "layout": "Egret xlarge"
+    },
+    {
+      "engine": "PP-OCRv6",
+      "id": "pp-ocrv6",
+      "label": "PP-OCRv6 + default layout",
+      "layout": "docling default"
+    },
+    {
+      "engine": "PP-OCRv6",
+      "id": "pp-ocrv6-pp",
+      "label": "PP-OCRv6 + PP-DocLayout-V3",
+      "layout": "PP-DocLayout-V3"
+    },
+    {
+      "engine": "PP-OCRv6",
+      "id": "pp-ocrv6-egret-large",
+      "label": "PP-OCRv6 + Egret large",
+      "layout": "Egret large"
+    },
+    {
+      "engine": "Nemotron OCR v2",
+      "id": "nemotron-ocr",
+      "label": "Nemotron OCR v2 + default layout",
+      "layout": "docling default"
+    },
+    {
+      "engine": "Nemotron OCR v2",
+      "id": "nemotron-ocr-pp",
+      "label": "Nemotron OCR v2 + PP-DocLayout-V3",
+      "layout": "PP-DocLayout-V3"
+    },
+    {
+      "engine": "Nemotron OCR v2",
+      "id": "nemotron-ocr-egret-large",
+      "label": "Nemotron OCR v2 + Egret large",
+      "layout": "Egret large"
+    },
+    {
+      "engine": "GLM-OCR",
+      "id": "glm-egret-large",
+      "label": "GLM-OCR + Egret large",
+      "layout": "Egret large"
+    },
+    {
+      "engine": "Nemotron 3.5 Parse",
+      "id": "vlm-nemotron-parse",
+      "label": "Nemotron 3.5 Parse (full page, VLM pipeline)",
+      "layout": "VLM (full page)"
+    },
+    {
+      "engine": "LightOnOCR-3-4B",
+      "id": "vlm-lighton-ocr-3",
+      "label": "LightOnOCR-3-4B (full page, VLM pipeline)",
+      "layout": "VLM (full page)"
     },
     {
       "engine": "RapidOCR",

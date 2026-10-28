@@ -23,3 +23,13 @@ repos:
         types_or: [ python, pyi ]
       - id: ruff-format
         types_or: [ python, pyi ]
+
+  - repo: local
+    hooks:
+      # benchmarks/internal holds private documents; .gitignore keeps them out, this catches `git add -f`
+      - id: no-internal-benchmark-data
+        name: no private benchmark data
+        entry: private benchmark data must not be committed (benchmarks/internal/ is local only)
+        language: fail
+        files: ^benchmarks/internal/
+        exclude: ^benchmarks/internal/README\.md$

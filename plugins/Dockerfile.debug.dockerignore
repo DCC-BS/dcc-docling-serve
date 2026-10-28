@@ -1,0 +1,9 @@
+# Dockerfile.debug builds with the parent of this repo as context (compose.debug.yaml).
+# Keep the private benchmark data and results out of that context: they never belong in an image.
+dcc-docling-serve/benchmarks/internal
+dcc-docling-serve/benchmarks/results
+dcc-docling-serve/benchmarks/tool_comparison/results
+dcc-docling-serve/benchmarks/tool_comparison/public
+dcc-docling-serve/benchmarks/list_eval/results
+**/.venv
+**/.git

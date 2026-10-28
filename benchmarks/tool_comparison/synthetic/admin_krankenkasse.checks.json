@@ -1,0 +1,92 @@
+[
+  {
+    "category": "body",
+    "page": 1,
+    "text": "Gesundkasse Beispiel"
+  },
+  {
+    "category": "body",
+    "page": 1,
+    "text": "Postfach, 4000 Musterstadt"
+  },
+  {
+    "category": "body",
+    "page": 1,
+    "text": "Lea Muster"
+  },
+  {
+    "category": "body",
+    "page": 1,
+    "text": "Beispielweg 12"
+  },
+  {
+    "category": "body",
+    "page": 1,
+    "text": "4051 Basel"
+  },
+  {
+    "category": "heading",
+    "page": 1,
+    "text": "Leistungsabrechnung vom 31.03.2026"
+  },
+  {
+    "category": "body",
+    "page": 1,
+    "text": "Versichertennummer: 80756 99990 00001"
+  },
+  {
+    "category": "body",
+    "page": 1,
+    "text": "Grundversicherung, Franchise CHF 1'500"
+  },
+  {
+    "category": "table",
+    "page": 1,
+    "text": "08.01.2026 Praxis Dr. A. Beispiel Konsultation 142.30 142.30 0.00 0.00"
+  },
+  {
+    "category": "table",
+    "page": 1,
+    "text": "08.01.2026 Apotheke am Platz Medikamente 48.65 48.65 0.00 0.00"
+  },
+  {
+    "category": "table",
+    "page": 1,
+    "text": "22.01.2026 Labor Muster AG Laboranalysen 96.40 96.40 0.00 0.00"
+  },
+  {
+    "category": "table",
+    "page": 1,
+    "text": "05.02.2026 Praxis Dr. A. Beispiel Konsultation 118.90 118.90 0.00 0.00"
+  },
+  {
+    "category": "table",
+    "page": 1,
+    "text": "05.02.2026 Physiotherapie Beispiel Physiotherapie 9 Sitzungen 486.00 486.00 0.00 0.00"
+  },
+  {
+    "category": "table",
+    "page": 1,
+    "text": "19.02.2026 Spital Musterstadt Ambulante Behandlung 1'274.55 607.75 66.68 600.12"
+  },
+  {
+    "category": "table",
+    "page": 1,
+    "text": "03.03.2026 Apotheke am Platz Medikamente 63.20 0.00 6.32 56.88"
+  },
+  {
+    "category": "table",
+    "page": 1,
+    "text": "17.03.2026 Praxis Dr. A. Beispiel Konsultation 142.30 0.00 14.23 128.07"
+  },
+  {
+    "category": "body",
+    "page": 1,
+    "text": "Die Verg\u00fctung wird innert 10 Tagen auf Ihr Konto \u00fcberwiesen. Einw\u00e4nde gegen diese Abrechnung richten Sie bitte innert 30 Tagen schriftlich an uns."
+  },
+  {
+    "category": "furniture",
+    "page": 1,
+    "text": "Testdokument mit fiktiven Daten"
+  }
+]

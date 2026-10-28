@@ -220,7 +220,7 @@ if (C.title) document.title = C.title;
 if (C.heading) document.getElementById("heading").textContent = C.heading;
 const refDocs = S.docs.filter(d => d.reference);
 // Score shown per document: ground truth, reference transcription, else PDF text layer
-const docScore = (d, e) => d.synthetic ? e?.gt?.body_recall : d.reference ? e?.ref?.recall : e?.layer?.recall;
+const docScore = (d, e) => d.ground_truth ? e?.gt?.body_recall : d.reference ? e?.ref?.recall : e?.layer?.recall;
 function heat(v) {   // 0..1 -> sequential blue; returns style
   if (v == null) return "";
   const i = Math.max(0, Math.min(RAMP.length - 1, Math.round(v * (RAMP.length - 1))));
@@ -383,7 +383,7 @@ function docsTable() {
   document.getElementById("doc-legend").innerHTML = [0, .25, .5, .75, 1].map(v => `<span><span class="sw" style="${heat(v)}"></span>${pct(v)}</span>`).join("") + `<span><span class="fail">failed</span></span>`;
   let h = `<table><thead><tr><th>Document</th><th class="num">Pages</th><th class="num">Text-layer pages</th>${TOOLS.map(t => `<th class="num">${esc(t.label)}</th>`).join("")}</tr></thead><tbody>`;
   for (const d of S.docs) {
-    h += `<tr class="click" data-doc="${esc(d.id)}"><td>${esc(d.name)} ${d.synthetic ? '<span class="badge">synthetic</span>' : ""}${d.reference ? '<span class="badge">reference</span>' : ""}</td><td class="num">${d.pages}</td><td class="num">${d.text_layer_pages}</td>`;
+    h += `<tr class="click" data-doc="${esc(d.id)}"><td>${esc(d.name)} ${d.synthetic ? '<span class="badge">synthetic</span>' : d.ground_truth ? '<span class="badge">ground truth</span>' : ""}${d.reference ? '<span class="badge">reference</span>' : ""}</td><td class="num">${d.pages}</td><td class="num">${d.text_layer_pages}</td>`;
     for (const t of TOOLS) {
       const e = d.tools[t.id];
       if (!e) { h += `<td class="num">–</td>`; continue; }
