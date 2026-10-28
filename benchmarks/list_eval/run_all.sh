@@ -6,7 +6,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 IMAGE="${1:?image}"
 RESULTS="${2:-$HERE/results}"
-TEST_DOCS="${TEST_DOCS:-$HERE/../../../test-docs}"
+TEST_DOCS="${TEST_DOCS:-$HERE/../internal/docs}"
 DOCS=(/e/lists_styles.pdf /e/lists_styles_scan.pdf /e/lists_columns.pdf /e/lists_columns_scan.pdf)
 for f in "$TEST_DOCS"/*; do
   case "$f" in *.pdf|*.jpg|*.png) DOCS+=("/t/$(basename "$f")") ;; esac

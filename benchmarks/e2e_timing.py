@@ -9,8 +9,8 @@ cold conversion to load its models, then converts every document --repeats times
 For the docling-serve variants the wall time spans upload -> result download through the
 async API, which is what API clients experience.
 
-    uv run --script benchmarks/e2e_timing.py --docs ../test-docs
-    uv run --script benchmarks/e2e_timing.py --docs ../test-docs --variants official-cu130 custom-cu130
+    uv run --script benchmarks/e2e_timing.py --docs benchmarks/internal/docs
+    uv run --script benchmarks/e2e_timing.py --docs benchmarks/internal/docs --variants official-cu130 custom-cu130
 """
 
 import argparse

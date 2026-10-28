@@ -5,7 +5,7 @@
     "right": "release-glm-pp"
   },
   "docs": [
-    "../../../test-docs",
+    "../internal/docs",
     "synthetic",
     "../../data/ocr.png",
     "public/xfund_de"
@@ -77,6 +77,7 @@
   "pairs_tab": "Previous vs published",
   "references": [
     "references.json",
+    "../internal/references.json",
     "public/xfund_de.references.json"
   ],
   "results": "results/engines",

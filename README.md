@@ -453,8 +453,8 @@ then converts every document `--repeats` times with the options in `OPTIONS`.
 Results (raw JSONL plus `summary.md` with per-stage timings) go to `benchmarks/results/`.
 
 ```bash
-uv run --script benchmarks/e2e_timing.py --docs ../test-docs
-uv run --script benchmarks/e2e_timing.py --docs ../test-docs --variants official-cu130 custom-cu130 --repeats 1
+uv run --script benchmarks/e2e_timing.py --docs benchmarks/internal/docs
+uv run --script benchmarks/e2e_timing.py --docs benchmarks/internal/docs --variants official-cu130 custom-cu130 --repeats 1
 ```
 
 ## Converter comparison
@@ -476,6 +476,17 @@ Note that the Jina runner uploads every document to r.jina.ai.
 `build_dashboard.py` reads what to compare from a JSON config: tools and labels, results
 folder, documents, assessment file and page texts. With no `--config` it uses
 `converters.config.json`, which builds the dashboard above.
+
+### Private test documents
+
+The test documents themselves are not in this repository. Put internal documents into
+`benchmarks/internal/docs/`: git ignores everything in `benchmarks/internal/` except its
+README, and a pre-commit hook rejects files added there by force. Without that folder the
+benchmarks still run, on the synthetic documents, `data/ocr.png` and the public XFUND forms.
+[`benchmarks/internal/README.md`](benchmarks/internal/README.md) says what to add for each
+kind of document (nothing, a transcription in `benchmarks/internal/references.json`, or a
+hand-checked `<name>.gt.md`), and how the box editor in `tool_comparison/box_editor/`
+records where each line of text stands on the page.
 
 ### OCR engine × layout model
 
@@ -693,7 +704,7 @@ version (replace `v1.38.1` with the new tag). Build the image first (step 2) for
    (the CELEX regulation) should not be OCR-bound:
 
    ```bash
-   uv run --script benchmarks/e2e_timing.py --docs ../test-docs --tag v1.38.1 --variants official-cu130 custom-cu130 \
+   uv run --script benchmarks/e2e_timing.py --docs benchmarks/internal/docs --tag v1.38.1 --variants official-cu130 custom-cu130 \
      --image custom-cu130=dcc-docling-serve-test:cu130
    ```
 

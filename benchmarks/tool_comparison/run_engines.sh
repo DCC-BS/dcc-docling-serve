@@ -25,7 +25,7 @@ REPEATS="${REPEATS:-3}"  # conversions per document; the dashboard shows the med
 ALLOW_BUSY_GPU="${ALLOW_BUSY_GPU:-0}"  # 1 starts even when other processes use the GPUs
 NETWORK=tool-comparison-engines
 RESULTS="${RESULTS:-results/engines}"
-DOCS=(../../../test-docs synthetic ../../data/ocr.png public/xfund_de)  # public/: fetch_public.py
+DOCS=("${DCC_INTERNAL_DOCS:-../internal/docs}" synthetic ../../data/ocr.png public/xfund_de)  # public/: fetch_public.py
 
 # Nemotron 3.5 Parse: the vLLM plugin ships inside the model repo and pins vllm 0.26.0
 NEMOTRON_PARSE_REVISION=e7ea79242a87ea0ad3919b672bfedb429a683206

@@ -9,6 +9,7 @@ Model loading is timed once per tool and written to <tool>/_setup.json.
 
 import argparse
 import json
+import os
 import sys
 import time
 import traceback
@@ -17,7 +18,9 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 SUPPORTED_SUFFIXES = {".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff"}
-DEFAULT_DOCS = [HERE.parents[2] / "test-docs", HERE / "synthetic"]
+# Private documents live in benchmarks/internal/docs (git-ignored, see its README); DCC_INTERNAL_DOCS moves them
+INTERNAL_DOCS = Path(os.environ.get("DCC_INTERNAL_DOCS", HERE.parent / "internal" / "docs"))
+DEFAULT_DOCS = [INTERNAL_DOCS, HERE / "synthetic"]
 DEFAULT_RESULTS = HERE / "results"
 
 
