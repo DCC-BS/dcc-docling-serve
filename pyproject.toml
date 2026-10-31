@@ -1,6 +1,6 @@
 [project]
 name = "docling-serve-plugins"
-version = "0.1.0"
+version = "0.1.1"
 description = "Patched docling-serve image with PP-DocLayout-V3 layout and GLM-OCR plugins"
 readme = "README.md"
 requires-python = ">=3.13"
