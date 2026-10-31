@@ -14,6 +14,10 @@ resolution-markers = [
 exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
 exclude-newer-span = "P7D"
 
+[options.exclude-newer-package]
+docling-glm-ocr = { timestamp = "0001-01-01T00:00:00Z", span = "PT0S" }
+docling-pp-doc-layout = { timestamp = "0001-01-01T00:00:00Z", span = "PT0S" }
+
 [[package]]
 name = "accelerate"
 version = "1.15.0"
@@ -501,16 +505,17 @@ chunking = [
 
 [[package]]
 name = "docling-glm-ocr"
-version = "0.5.1"
+version = "0.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "docling" },
     { name = "httpx" },
+    { name = "numpy" },
     { name = "pillow" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/37/4a/16544d7f1dcb73695ee7507f183257858391edd2a71d9b04498ef29c3580/docling_glm_ocr-0.5.1.tar.gz", hash = "sha256:172fc10a5af471aef2d4fc98fd82dce68b285322f2dd55c566dd05bbaacd7ef7", size = 161430, upload-time = "2026-08-12T08:19:19.701Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fc/3d/f0371f1c32ebffd2a68a74fe42ccbf6e106885dc54d8d6b519cc256fd4a4/docling_glm_ocr-0.6.0.tar.gz", hash = "sha256:251d91543ea0edf74fbdb2ff622325328c2a82a3b5ca5fb53a9eb45f773ac256", size = 199108, upload-time = "2026-10-28T18:38:53.228Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/89/dd/4ad3fe4684e790f4ac8183da86267321c615a617ec56d2efb21a289df796/docling_glm_ocr-0.5.1-py3-none-any.whl", hash = "sha256:2437f7a903a2af4ab82623cab4403a52f05e906bcb509cbccb3f082a4e27f9fa", size = 13302, upload-time = "2026-08-12T08:19:18.797Z" },
+    { url = "https://files.pythonhosted.org/packages/06/b1/bc878a6ad94b70518dec5d9b9eba6a00d9644127ad8c637869c21ed35dde/docling_glm_ocr-0.6.0-py3-none-any.whl", hash = "sha256:ac635a0cfae6d58a358bb4ad697973c7e2930a550e5f57f10c0239215bda9220", size = 25621, upload-time = "2026-10-28T18:38:52.064Z" },
 ]
 
 [[package]]
@@ -562,16 +567,16 @@ wheels = [
 
 [[package]]
 name = "docling-pp-doc-layout"
-version = "0.2.3"
+version = "0.2.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "docling" },
     { name = "torch" },
     { name = "transformers" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/aa/b6/6c399e70e40e45e4966560453a1c7621d66afdd7512eda83c14434601756/docling_pp_doc_layout-0.2.3.tar.gz", hash = "sha256:bcef678dfb2734f2dc00ac3a10db20b91229aac407c5f97fc5dfc184ab521ed5", size = 524652, upload-time = "2026-08-12T08:19:27.305Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8c/0e/c5963800f5023845ca9931726b5a65fa428ed7e122aba737f2842aaccc2c/docling_pp_doc_layout-0.2.7.tar.gz", hash = "sha256:6bee3115f2abce24c0a1fd46d830d65c0382a3a26460aba7a040874ecd34c3d0", size = 545848, upload-time = "2026-10-28T18:39:09.973Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/55/20/e02ef90c1d757c06d44cc041c9625dddb8ce70fd2fcdba385430852040ec/docling_pp_doc_layout-0.2.3-py3-none-any.whl", hash = "sha256:93489088d1e7dcd686dff7ad57f34989d5acb2a1a1f007def503c8da73b187cf", size = 10819, upload-time = "2026-08-12T08:19:26.485Z" },
+    { url = "https://files.pythonhosted.org/packages/c6/f5/195ccb15ac0ea85b686354a6ea2b45d0efa21b35867c567a53303de82d61/docling_pp_doc_layout-0.2.7-py3-none-any.whl", hash = "sha256:585e9c05da45dbeeb8991667f5ab3d6bdb21d60ec2ee6b2cdc6c02d906ccb625", size = 22836, upload-time = "2026-10-28T18:39:08.777Z" },
 ]
 
 [[package]]
@@ -592,8 +597,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "docling-glm-ocr", marker = "extra == 'dev'", specifier = ">=0.5.1" },
-    { name = "docling-pp-doc-layout", marker = "extra == 'dev'", specifier = ">=0.2.3" },
+    { name = "docling-glm-ocr", marker = "extra == 'dev'", specifier = ">=0.6.0" },
+    { name = "docling-pp-doc-layout", marker = "extra == 'dev'", specifier = ">=0.2.7" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=2.20.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },

@@ -13,8 +13,8 @@ dev = [
   "httpx>=0.28",
   "ruff>=0.9",
   "pre-commit>=2.20.0",
-  "docling-glm-ocr>=0.5.1",
-  "docling-pp-doc-layout>=0.2.3",
+  "docling-glm-ocr>=0.6.0",
+  "docling-pp-doc-layout>=0.2.7",
 ]
 
 [build-system]
@@ -62,3 +62,5 @@ markers = [
 [tool.uv]
 # Supply-chain cooldown: uv only uses distributions uploaded at least 7 days ago.
 exclude-newer = "P7D"
+# Our own packages: always current (permanent).
+exclude-newer-package = { docling-glm-ocr = "P0D", docling-pp-doc-layout = "P0D" }
