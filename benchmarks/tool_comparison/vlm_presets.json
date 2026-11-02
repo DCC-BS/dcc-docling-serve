@@ -68,5 +68,65 @@
       "temperature": 0.0,
       "trust_remote_code": false
     }
+  },
+  "unlimited-ocr-2": {
+    "engine_options": {
+      "concurrency": 8,
+      "engine_type": "api",
+      "params": {
+        "custom_params": {
+          "eos_token_id": 1,
+          "max_page_tokens": 20000,
+          "ngram_size": 35,
+          "page_token_id": 128827,
+          "window_size": 128
+        },
+        "images_config": {
+          "crop_mode": true
+        },
+        "max_tokens": 8000,
+        "model": "baidu/Unlimited-OCR-2",
+        "skip_special_tokens": false,
+        "temperature": 0
+      },
+      "timeout": 900,
+      "url": "http://engines-vllm-unlimited-ocr-2:8000/v1/chat/completions"
+    },
+    "model_spec": {
+      "api_overrides": {
+        "api": {
+          "params": {
+            "custom_params": {
+              "eos_token_id": 1,
+              "max_page_tokens": 20000,
+              "ngram_size": 35,
+              "page_token_id": 128827,
+              "window_size": 128
+            },
+            "images_config": {
+              "crop_mode": true
+            },
+            "max_tokens": 8000,
+            "model": "baidu/Unlimited-OCR-2",
+            "skip_special_tokens": false,
+            "temperature": 0
+          }
+        }
+      },
+      "default_repo_id": "baidu/Unlimited-OCR-2",
+      "extra_generation_config": {},
+      "max_new_tokens": 8000,
+      "name": "Unlimited-OCR-2",
+      "prompt": "<PAGE><image>Multi page parsing.",
+      "response_format": "unlimited_ocr_markdown",
+      "revision": "0480966938291445591f69f08a13b041c073a96a",
+      "stop_strings": [],
+      "supported_engines": [
+        "api"
+      ],
+      "temperature": 0.0,
+      "trust_remote_code": false
+    },
+    "scale": 4.0
   }
 }

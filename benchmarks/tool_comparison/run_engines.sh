@@ -31,6 +31,9 @@ DOCS=("${DCC_INTERNAL_DOCS:-../internal/docs}" synthetic ../../data/ocr.png publ
 NEMOTRON_PARSE_REVISION=e7ea79242a87ea0ad3919b672bfedb429a683206
 NEMOTRON_PARSE_DIR=/root/.cache/huggingface/nemotron-3.5-parse
 LIGHTON_REVISION=b71010f095dc3735de7ee6b9969bff8f8f50b39a
+# Unlimited-OCR-2: vLLM does not run v2 yet (vllm-project/vllm#64016); Baidu's SGLang build ships in the model repo
+UNLIMITED_OCR_2_REVISION=0480966938291445591f69f08a13b041c073a96a
+UNLIMITED_OCR_2_DIR=/root/.cache/huggingface/unlimited-ocr-2
 
 LAYOUT_PRESETS='{
   "ppdoclayout-v3": {"kind": "ppdoclayout-v3"},
@@ -112,7 +115,8 @@ gpu_processes() {  # compute processes on GPU index $1
     nvidia-smi --query-compute-apps=gpu_uuid,pid,process_name,used_memory --format=csv,noheader | grep "^$uuid" || true
 }
 GPUS=("$DOCLING_GPU")
-any_wanted release-glm release-glm-pp glm-egret-large vlm-nemotron-parse vlm-lighton-ocr-3 && GPUS+=("$VLLM_GPU")
+any_wanted release-glm release-glm-pp glm-egret-large vlm-nemotron-parse vlm-lighton-ocr-3 \
+    vlm-unlimited-ocr-2 unlimited-ocr-2-sglang && GPUS+=("$VLLM_GPU")
 for gpu in $(printf '%s\n' "${GPUS[@]}" | sort -u); do
     busy=$(gpu_processes "$gpu")
     if [[ -n "$busy" && "$ALLOW_BUSY_GPU" != 1 ]]; then
@@ -189,6 +193,31 @@ if wanted vlm-lighton-ocr-3; then
          --default-chat-template-kwargs '{\"enable_thinking\":false}' --gpu-memory-utilization $VLLM_MEMORY"
     # About 20x slower than the other configurations: one conversion per document
     run_config vlm-lighton-ocr-3 --option pipeline=vlm --option vlm_pipeline_preset=lighton-ocr-3 --repeats 1
+fi
+# The same server read through docling's VLM pipeline (one request per page) and directly (one per document)
+if any_wanted vlm-unlimited-ocr-2 unlimited-ocr-2-sglang; then
+    # The setup also serialises the model card's no-repeat n-gram processor, which every request carries
+    start_vllm unlimited-ocr-2 lmsysorg/sglang:v0.5.20 \
+        "python3 -c \"from huggingface_hub import snapshot_download; snapshot_download('baidu/Unlimited-OCR-2', revision='$UNLIMITED_OCR_2_REVISION', local_dir='$UNLIMITED_OCR_2_DIR')\" \
+         && pip install -q --no-deps $UNLIMITED_OCR_2_DIR/wheel/sglang-0.5.20.dev13+g75b9b06b02-py3-none-any.whl \
+         && python3 -c \"from sglang.srt.sampling.custom_logit_processor import DeepseekOCRNoRepeatNGramLogitProcessor as P; open('$UNLIMITED_OCR_2_DIR/ngram_processor.txt', 'w').write(P.to_str())\" \
+         && exec python3 -m sglang.launch_server --model-path $UNLIMITED_OCR_2_DIR --served-model-name baidu/Unlimited-OCR-2 \
+            --host 0.0.0.0 --port 8000 --chat-template unlimited-ocr --max-prefill-tokens 2048 \
+            --enable-custom-logit-processor --disable-radix-cache --mm-preprocess-cache-size-mb 0 \
+            --mem-fraction-static $VLLM_MEMORY"
+    NGRAM_PROCESSOR=$(cat "$HF_CACHE/unlimited-ocr-2/ngram_processor.txt")
+    PRESETS=$(jq -c --arg p "$NGRAM_PROCESSOR" '."unlimited-ocr-2" |= (
+        .engine_options.params.custom_logit_processor = $p
+        | .model_spec.api_overrides.api.params.custom_logit_processor = $p)' vlm_presets.json)
+    run_config vlm-unlimited-ocr-2 --option pipeline=vlm --option vlm_pipeline_preset=unlimited-ocr-2 --repeats 1 \
+        --env "DOCLING_SERVE_CUSTOM_VLM_PRESETS=$PRESETS"
+    if wanted unlimited-ocr-2-sglang; then
+        # The container's address on the docker network: the server publishes no port
+        UNLIMITED_URL="http://$(docker inspect -f "{{(index .NetworkSettings.Networks \"$NETWORK\").IPAddress}}" "$VLLM_CONTAINER"):8000"
+        log "=== unlimited-ocr-2-sglang"
+        uv run --script run_unlimited_ocr.py --tool unlimited-ocr-2-sglang --url "$UNLIMITED_URL" \
+            --results "$RESULTS" --docs "${DOCS[@]}" --logit-processor "$HF_CACHE/unlimited-ocr-2/ngram_processor.txt" "${EXTRA_ARGS[@]}"
+    fi
 fi
 stop_vllm
 
