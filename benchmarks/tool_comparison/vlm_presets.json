@@ -118,7 +118,7 @@
       "max_new_tokens": 8000,
       "name": "Unlimited-OCR-2",
       "prompt": "<PAGE><image>Multi page parsing.",
-      "response_format": "unlimited_ocr_markdown",
+      "response_format": "unlimited_ocr2",
       "revision": "0480966938291445591f69f08a13b041c073a96a",
       "stop_strings": [],
       "supported_engines": [

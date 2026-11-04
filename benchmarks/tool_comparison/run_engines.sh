@@ -14,6 +14,8 @@ BASE_IMAGE="${BASE_IMAGE:-ghcr.io/dcc-bs/dcc-docling-serve-cu130:v1.38.1}"
 IMAGE="${IMAGE:-dcc-docling-serve-test:v1.38.1-cu130-engines}"
 # Only for the Nemotron OCR configurations: its torch 2.11 slows everything else down (Dockerfile.engines)
 NEMOTRON_IMAGE="${NEMOTRON_IMAGE:-dcc-docling-serve-test:v1.38.1-cu130-nemotron}"
+# Only for the Unlimited-OCR-2 VLM configuration: docling 2.146.0, which parses v2's output (Dockerfile.engines)
+DOCLING_IMAGE="${DOCLING_IMAGE:-dcc-docling-serve-test:v1.38.1-cu130-docling}"
 # The GLM-OCR configurations can run in an image with a patched plugin (the default is IMAGE)
 GLM_IMAGE="${GLM_IMAGE:-$IMAGE}"
 DOCLING_GPU="${DOCLING_GPU:-0}"
@@ -34,6 +36,13 @@ LIGHTON_REVISION=b71010f095dc3735de7ee6b9969bff8f8f50b39a
 # Unlimited-OCR-2: vLLM does not run v2 yet (vllm-project/vllm#64016); Baidu's SGLang build ships in the model repo
 UNLIMITED_OCR_2_REVISION=0480966938291445591f69f08a13b041c073a96a
 UNLIMITED_OCR_2_DIR=/root/.cache/huggingface/unlimited-ocr-2
+UNLIMITED_OCR_2_PORT="${UNLIMITED_OCR_2_PORT:-18010}"  # on localhost, for run_unlimited_ocr.py
+# SGLang's --mem-fraction-static; the model card uses 0.7, and 0.85 runs out of memory outside the
+# static pool on a 24 GB card
+UNLIMITED_OCR_2_MEMORY="${UNLIMITED_OCR_2_MEMORY:-0.6}"
+# The model card's server environment; without it, and without --enable-streaming-session, a
+# multi-page request stops decoding after its first window and never returns
+UNLIMITED_OCR_2_ENV="SGLANG_UOCR_EANABLE_DOC_LIMIT=1 SGLANG_UOCR_DOC_GUNDAM_PAGE_WINDOW=10 SGLANG_UOCR_DOC_BASE_PAGE_WINDOW=10 SGLANG_UOCR_MAX_PAGE_TOKENS=20000 SGLANG_OPT_UOCR_SAM_REL_POS_BIAS_MB=64 SGLANG_UOCR_SHM_WRAP_MODEL_DATA=1 SGLANG_UOCR_SHM_WRAP_MIN_MB=1 SGLANG_VLM_CACHE_SIZE_MB=0 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True"
 
 LAYOUT_PRESETS='{
   "ppdoclayout-v3": {"kind": "ppdoclayout-v3"},
@@ -81,11 +90,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-start_vllm() {  # <name> <image> <bash command run in the container>
+start_vllm() {  # <name> <image> <bash command run in the container> [extra docker run args]
     stop_vllm
     VLLM_CONTAINER="engines-vllm-$1"
     log "starting $VLLM_CONTAINER ($2) on GPU $VLLM_GPU"
-    docker run -d --rm --name "$VLLM_CONTAINER" --network "$NETWORK" --gpus "device=$VLLM_GPU" --ipc=host \
+    docker run -d --rm --name "$VLLM_CONTAINER" --network "$NETWORK" --gpus "device=$VLLM_GPU" --ipc=host "${@:4}" \
         -v "$HF_CACHE:/root/.cache/huggingface" -e "HF_TOKEN=${HF_TOKEN:-}" \
         --entrypoint /bin/bash "$2" -c "$3" >/dev/null
     local elapsed=0
@@ -142,6 +151,10 @@ docker build -q -f Dockerfile.engines --build-arg BASE_IMAGE="$BASE_IMAGE" --tar
 if any_wanted nemotron-ocr nemotron-ocr-pp nemotron-ocr-egret-large; then
     docker build -q -f Dockerfile.engines --build-arg BASE_IMAGE="$BASE_IMAGE" --target engines-nemotron \
         -t "$NEMOTRON_IMAGE" . >/dev/null
+fi
+if wanted vlm-unlimited-ocr-2; then
+    docker build -q -f Dockerfile.engines --build-arg BASE_IMAGE="$BASE_IMAGE" --target engines-docling \
+        -t "$DOCLING_IMAGE" . >/dev/null
 fi
 
 # --- In-container engines (no vLLM) ---------------------------------------------------------
@@ -201,19 +214,21 @@ if any_wanted vlm-unlimited-ocr-2 unlimited-ocr-2-sglang; then
         "python3 -c \"from huggingface_hub import snapshot_download; snapshot_download('baidu/Unlimited-OCR-2', revision='$UNLIMITED_OCR_2_REVISION', local_dir='$UNLIMITED_OCR_2_DIR')\" \
          && pip install -q --no-deps $UNLIMITED_OCR_2_DIR/wheel/sglang-0.5.20.dev13+g75b9b06b02-py3-none-any.whl \
          && python3 -c \"from sglang.srt.sampling.custom_logit_processor import DeepseekOCRNoRepeatNGramLogitProcessor as P; open('$UNLIMITED_OCR_2_DIR/ngram_processor.txt', 'w').write(P.to_str())\" \
+         && export $UNLIMITED_OCR_2_ENV \
          && exec python3 -m sglang.launch_server --model-path $UNLIMITED_OCR_2_DIR --served-model-name baidu/Unlimited-OCR-2 \
             --host 0.0.0.0 --port 8000 --chat-template unlimited-ocr --max-prefill-tokens 2048 \
-            --enable-custom-logit-processor --disable-radix-cache --mm-preprocess-cache-size-mb 0 \
-            --mem-fraction-static $VLLM_MEMORY"
+            --enable-custom-logit-processor --enable-streaming-session --allow-auto-truncate \
+            --disable-radix-cache --mm-preprocess-cache-size-mb 0 --mem-fraction-static $UNLIMITED_OCR_2_MEMORY" \
+        -p "127.0.0.1:$UNLIMITED_OCR_2_PORT:8000"
     NGRAM_PROCESSOR=$(cat "$HF_CACHE/unlimited-ocr-2/ngram_processor.txt")
     PRESETS=$(jq -c --arg p "$NGRAM_PROCESSOR" '."unlimited-ocr-2" |= (
         .engine_options.params.custom_logit_processor = $p
         | .model_spec.api_overrides.api.params.custom_logit_processor = $p)' vlm_presets.json)
-    run_config vlm-unlimited-ocr-2 --option pipeline=vlm --option vlm_pipeline_preset=unlimited-ocr-2 --repeats 1 \
+    run_config vlm-unlimited-ocr-2 --image "$DOCLING_IMAGE" --option pipeline=vlm --option vlm_pipeline_preset=unlimited-ocr-2 --repeats 1 \
         --env "DOCLING_SERVE_CUSTOM_VLM_PRESETS=$PRESETS"
     if wanted unlimited-ocr-2-sglang; then
-        # The container's address on the docker network: the server publishes no port
-        UNLIMITED_URL="http://$(docker inspect -f "{{(index .NetworkSettings.Networks \"$NETWORK\").IPAddress}}" "$VLLM_CONTAINER"):8000"
+        # Through the published port: rootless docker does not route the host to container addresses
+        UNLIMITED_URL="http://127.0.0.1:$UNLIMITED_OCR_2_PORT"
         log "=== unlimited-ocr-2-sglang"
         uv run --script run_unlimited_ocr.py --tool unlimited-ocr-2-sglang --url "$UNLIMITED_URL" \
             --results "$RESULTS" --docs "${DOCS[@]}" --logit-processor "$HF_CACHE/unlimited-ocr-2/ngram_processor.txt" "${EXTRA_ARGS[@]}"

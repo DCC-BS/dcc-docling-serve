@@ -2,9 +2,11 @@
 #
 #   engines           our published docling-serve image plus docling's Egret layout weights
 #   engines-nemotron  engines plus docling's built-in Nemotron OCR v2 engine (ocr_preset nemotron-ocr)
+#   engines-docling   engines with a newer docling, for the Unlimited-OCR-2 VLM configuration
 #
 #   docker build -f Dockerfile.engines --target engines -t dcc-docling-serve-test:v1.38.1-cu130-engines .
 #   docker build -f Dockerfile.engines --target engines-nemotron -t dcc-docling-serve-test:v1.38.1-cu130-nemotron .
+#   docker build -f Dockerfile.engines --target engines-docling -t dcc-docling-serve-test:v1.38.1-cu130-docling .
 ARG BASE_IMAGE=ghcr.io/dcc-bs/dcc-docling-serve-cu130:v1.38.1
 FROM ${BASE_IMAGE} AS engines
 
@@ -35,3 +37,11 @@ RUN python -c "import os; from pathlib import Path; \
 from docling.models.stages.ocr.nemotron_ocr_model import NemotronOcrModel, nemotron_ocr_model_dir; \
 NemotronOcrModel.download_models(Path(os.environ['DOCLING_SERVE_ARTIFACTS_PATH']) / nemotron_ocr_model_dir())" \
     && find "${DOCLING_SERVE_ARTIFACTS_PATH}" -name .cache -type d -prune -exec rm -rf {} +
+
+FROM engines AS engines-docling
+
+# docling 2.146.0 parses Unlimited-OCR-2's <BLOCK>label[bbox]<FORK>text output (response format
+# unlimited_ocr2, docling-project/docling#5107); the image's 2.142.1 only knows v1's <|det|> markers.
+# Its requirements are the ones the image already meets, so only docling-slim changes.
+ARG DOCLING_VERSION=2.146.0
+RUN pip install --no-cache-dir --no-deps "docling-slim==${DOCLING_VERSION}"

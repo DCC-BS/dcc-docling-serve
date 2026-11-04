@@ -53,7 +53,12 @@ def page_images(doc: Path) -> list[bytes]:
         pdf.close()
 
 
+# A title block becomes a heading of its level, as in Baidu's utils/process_unlimitedOCR2.py
+_TITLE = re.compile(r"<BLOCK>title(?:<LEVEL(\d*)>)?\[[^\]]*\](?:<LEVEL(\d*)>)?<FORK>")
+
+
 def clean(text: str) -> str:
+    text = _TITLE.sub(lambda m: "#" * max(1, int(m.group(1) or m.group(2) or 1)) + " ", text)
     text = _SPECIAL.sub("", _GROUNDING.sub("", text))
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
@@ -73,7 +78,8 @@ def main() -> None:
     args = cli.parse_args()
     processor = args.logit_processor.read_text(encoding="utf-8")
     recorder = Recorder(args.tool, args.results, args.force)
-    client = httpx.Client(timeout=httpx.Timeout(3600, connect=30))
+    # The server can hang a request after running out of memory, so a stuck document fails instead
+    client = httpx.Client(timeout=httpx.Timeout(1800, connect=30))
     recorder.setup(model_load_s=0.0, endpoint=args.url, model=args.model)
 
     def convert_once(pngs: list[bytes]) -> dict:
