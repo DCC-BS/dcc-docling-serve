@@ -22,7 +22,7 @@ from pathlib import Path
 
 import httpx
 import pypdfium2
-from common import Recorder, list_docs, parser
+from common import Recorder, list_docs, log, parser
 from PIL import Image
 
 DPI = 300  # the model card rasterises PDFs at 300 DPI
@@ -111,9 +111,13 @@ def main() -> None:
         body = response.json()
         raw = body["choices"][0]["message"]["content"] or ""
         # Text before the first <PAGE> belongs to page 1
-        pages = [clean(part) for part in raw.split("<PAGE>")]
-        if len(pages) > len(pngs) and not pages[0]:
-            pages = pages[1:]
+        parts = raw.split("<PAGE>")
+        if len(parts) > 1:
+            parts = [parts[0] + parts[1], *parts[2:]]
+        pages = [clean(part) for part in parts]
+        if body["choices"][0].get("finish_reason") == "length":
+            # Like docling's partial_success: kept, but the output was cut at the token limit
+            log(f"output incomplete (finish_reason=length) after {len(pages)} of {len(pngs)} pages")
         return {
             "markdown": "\n\n".join(pages),
             "pages": pages,

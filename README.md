@@ -612,7 +612,8 @@ Baidu's Unlimited-OCR-2 on the same 96 documents, served by SGLang with the sett
 model card. Two rows: through docling 2.146.0's VLM pipeline (`unlimited_ocr2` response
 format, one request per page) and without docling, the whole document in one request as the
 model card does it (`run_unlimited_ocr.py`). One timed pass each, so times are not exact
-matches for the three-repeat rows above.
+matches for the three-repeat rows above. The direct times cover the request only, not rendering
+the pages at 300 DPI, which the docling times include.
 
 | Configuration | Time | Synthetic F1 | Tables | Headings | XFUND recall / precision | Text-layer recall / precision | Handwritten note |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
