@@ -554,8 +554,10 @@ The config also lists candidates that are not in the image yet:
 - docling's Egret layout models (medium, large, xlarge) with RapidOCR, and Egret large with
   Nemotron OCR and GLM-OCR
 - PP-OCRv6 (our `docling-pp-ocrv6` plugin) with each layout model
-- Nemotron 3.5 Parse and LightOnOCR-3-4B on the whole page through docling's VLM pipeline,
+- Nemotron 3.5 Parse, LightOnOCR-3-4B and Unlimited-OCR-2 on the whole page through docling's VLM pipeline,
   with the presets in `benchmarks/tool_comparison/vlm_presets.json`
+- Unlimited-OCR-2 without docling, the whole document in one request to its SGLang server
+  (`run_unlimited_ocr.py`, row `unlimited-ocr-2-sglang`)
 
 #### Candidates tested in October 2026
 
@@ -603,6 +605,34 @@ None of the candidates replaces what the image has. Their weaknesses:
   (0.68 on XFUND) because it adds and repeats text.
 - **Not tested:** Chandra-OCR-2 and Indra-OCR (Datalab). Their weights use a modified
   OpenRAIL-M licence that is free only for small companies.
+
+#### Unlimited-OCR-2, November 2026
+
+Baidu's Unlimited-OCR-2 on the same 96 documents, served by SGLang with the settings from the
+model card. Two rows: through docling 2.146.0's VLM pipeline (`unlimited_ocr2` response
+format, one request per page) and without docling, the whole document in one request as the
+model card does it (`run_unlimited_ocr.py`). One timed pass each, so times are not exact
+matches for the three-repeat rows above.
+
+| Configuration | Time | Synthetic F1 | Tables | Headings | XFUND recall / precision | Text-layer recall / precision | Handwritten note |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Unlimited-OCR-2 in docling (whole page) | 5'057 s | 0.93 | 0.99 | 0.93 | 0.88 / 0.86 | 0.82 / 0.86 | failed |
+| Unlimited-OCR-2 without docling (whole document) | 7'966 s | 0.89 | 0.99 | 0.91 | 0.94 / 0.96 | 0.82 / 0.84 | 34 % |
+
+It doesn't replace anything either:
+
+- **In docling** the quality is close to the OCR engines, but it converts every page with the
+  VLM: about 10× slower than GLM-OCR. The 5'057 s leave out two phone photos that failed:
+  docling renders them at scale 4, about 200 megapixels, and SGLang rejects images that large.
+- **Without docling** it reads the XFUND forms best of all rows, but long documents are
+  2.5–7× slower than in docling because the pages are decoded one after another. Some
+  documents end in repetition loops ("4103. 4104. 4105. …" on a fax, empty table cells up to
+  the page token limit on two papers), and the 603-page CELEX regulation hit the 30-minute
+  request timeout (not counted in the 7'966 s). It reads only a third of the handwritten note.
+- SGLang needs the model card's environment variables and `--enable-streaming-session
+  --allow-auto-truncate`; without them requests with several pages hang. `run_engines.sh`
+  sets them. On single handwritten lines (the `ai-model-evaluation` OCR suite) the model
+  returns nothing or loops on some lines, with Baidu's transformers reference code as well.
 
 GLM-OCR's weak tables and headings come from the plugin, not the model: it returns one text
 cell per region, so docling can't build table cells or tell a heading from body text. The
