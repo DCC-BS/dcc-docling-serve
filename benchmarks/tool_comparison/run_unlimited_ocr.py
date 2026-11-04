@@ -28,8 +28,10 @@ from PIL import Image
 DPI = 300  # the model card rasterises PDFs at 300 DPI
 TOKENS_PER_PAGE = 8000
 PAGE_TOKEN_ID = 128827  # <PAGE>
-# Grounding markers: <|det|>label [x1, y1, x2, y2]<|/det|> (v2) and <|ref|>label<|/ref|><|det|>[[..]]<|/det|> (v1)
-_GROUNDING = re.compile(r"<\|ref\|>.*?<\|/ref\|>|<\|det\|>.*?<\|/det\|>", re.DOTALL)
+# Block markers: <BLOCK>label[<LEVELn>][x1, y1, x2, y2]<FORK>text and <CHILD> (v2), <|det|>label [..]<|/det|> (v1)
+_GROUNDING = re.compile(
+    r"<BLOCK>[^<]*(?:<LEVEL\d+>)?[^<]*<FORK>|<CHILD>|<\|ref\|>.*?<\|/ref\|>|<\|det\|>.*?<\|/det\|>", re.DOTALL
+)
 _SPECIAL = re.compile(r"<｜[^｜]*｜>|<\|[^|]*\|>")
 
 
