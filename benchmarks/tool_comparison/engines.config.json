@@ -26,6 +26,8 @@
     "glm-egret-large",
     "vlm-nemotron-parse",
     "vlm-lighton-ocr-3",
+    "vlm-unlimited-ocr-2",
+    "unlimited-ocr-2-sglang",
     "pp-ocrv6",
     "pp-ocrv6-pp",
     "pp-ocrv6-egret-large"
@@ -181,6 +183,18 @@
       "id": "vlm-lighton-ocr-3",
       "label": "LightOnOCR-3-4B (full page, VLM pipeline)",
       "layout": "VLM (full page)"
+    },
+    {
+      "engine": "Unlimited-OCR-2",
+      "id": "vlm-unlimited-ocr-2",
+      "label": "Unlimited-OCR-2 (full page, VLM pipeline)",
+      "layout": "VLM (full page)"
+    },
+    {
+      "engine": "Unlimited-OCR-2",
+      "id": "unlimited-ocr-2-sglang",
+      "label": "Unlimited-OCR-2 (whole document, SGLang without docling)",
+      "layout": "VLM (whole document)"
     },
     {
       "engine": "RapidOCR",
