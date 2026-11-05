@@ -17,6 +17,7 @@ exclude-newer-span = "P7D"
 [options.exclude-newer-package]
 docling-glm-ocr = { timestamp = "0001-01-01T00:00:00Z", span = "PT0S" }
 docling-pp-doc-layout = { timestamp = "0001-01-01T00:00:00Z", span = "PT0S" }
+docling-pp-ocrv6 = { timestamp = "0001-01-01T00:00:00Z", span = "PT0S" }
 
 [[package]]
 name = "accelerate"
@@ -580,6 +581,23 @@ wheels = [
 ]
 
 [[package]]
+name = "docling-pp-ocrv6"
+version = "0.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "docling" },
+    { name = "huggingface-hub" },
+    { name = "numpy" },
+    { name = "pillow" },
+    { name = "pyyaml" },
+    { name = "rapidocr" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3d/b2/83f8d8bfa1b193bbc4eba0d9a88869b9efdecb5fc12f6c5224ac75f1a277/docling_pp_ocrv6-0.2.0.tar.gz", hash = "sha256:2b96b5725a8acb86f2e376e771bef4eaff7bcf86a511f5830599d85de318be7f", size = 163625, upload-time = "2026-10-01T10:26:45.304Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a5/40/44dc0ef8a1177a6d1b7595dbcc628b168671475a241ae2dc77268fd91d06/docling_pp_ocrv6-0.2.0-py3-none-any.whl", hash = "sha256:aa389286a260f00b4a1f74872875a7fc32c8ca561e00cda41df2760417df2390", size = 12871, upload-time = "2026-10-01T10:26:44.167Z" },
+]
+
+[[package]]
 name = "docling-serve-plugins"
 version = "0.1.1"
 source = { editable = "." }
@@ -588,6 +606,7 @@ source = { editable = "." }
 dev = [
     { name = "docling-glm-ocr" },
     { name = "docling-pp-doc-layout" },
+    { name = "docling-pp-ocrv6" },
     { name = "httpx" },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -599,6 +618,7 @@ dev = [
 requires-dist = [
     { name = "docling-glm-ocr", marker = "extra == 'dev'", specifier = ">=0.6.0" },
     { name = "docling-pp-doc-layout", marker = "extra == 'dev'", specifier = ">=0.2.7" },
+    { name = "docling-pp-ocrv6", marker = "extra == 'dev'", specifier = ">=0.2.0" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=2.20.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },

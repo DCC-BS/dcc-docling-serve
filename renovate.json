@@ -126,7 +126,8 @@
       ],
       "matchPackageNames": [
         "docling-glm-ocr",
-        "docling-pp-doc-layout"
+        "docling-pp-doc-layout",
+        "docling-pp-ocrv6"
       ],
       "minimumReleaseAge": null
     }
