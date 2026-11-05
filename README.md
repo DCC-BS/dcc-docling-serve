@@ -502,6 +502,11 @@ Note that the Jina runner uploads every document to r.jina.ai.
 folder, documents, assessment file and page texts. With no `--config` it uses
 `converters.config.json`, which builds the dashboard above.
 
+The tables in this README are summaries. The scores of each run, per configuration and per
+made-up or XFUND document, are in the private
+[results repository](https://github.com/DCC-BS/ai-model-evaluation-results/blob/main/docling/README.md),
+next to the other model tests.
+
 ### Private test documents
 
 The test documents themselves are not in this repository. Put internal documents into
