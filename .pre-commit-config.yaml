@@ -12,7 +12,9 @@ repos:
         exclude: ^.devcontainer/devcontainer.json|.vscode/.*
         args: [--autofix]
       - id: end-of-file-fixer
+        exclude: \.patch$
       - id: trailing-whitespace
+        exclude: \.patch$  # context lines of a unified diff keep their spaces
       - id: detect-private-key
 
   - repo: https://github.com/astral-sh/ruff-pre-commit

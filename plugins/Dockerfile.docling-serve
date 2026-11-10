@@ -70,3 +70,22 @@ COPY list_bullets.py /tmp/list_bullets.py
 RUN SP="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
     && cp /tmp/list_bullets.py "$SP/dcc_list_bullets.py" \
     && printf 'import dcc_list_bullets\n' > "$SP/zz_dcc_list_bullets.pth"
+
+# Fewer stop-the-world garbage collections in the threaded PDF pipeline
+# (DCC_PIPELINE_GC=0 leaves the garbage collector as Python has it)
+COPY pipeline_gc.py /tmp/pipeline_gc.py
+RUN SP="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
+    && cp /tmp/pipeline_gc.py "$SP/dcc_pipeline_gc.py" \
+    && printf 'import dcc_pipeline_gc\n' > "$SP/zz_dcc_pipeline_gc.pth"
+
+# Faster TableFormer v1 with the same tables, as patches of the installed docling-ibm-models and
+# docling (see patches/README.md). `patch` refuses a file that changed upstream, so a new
+# docling-serve release with other versions fails here instead of shipping half a patch.
+# DCC_TABLES_<NAME>=0 turns one change off at runtime.
+COPY patches /tmp/patches
+RUN SP="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
+    && python -c "from importlib.metadata import version as v; \
+assert v('docling-ibm-models') == '4.0.4' and v('docling-slim') == '2.142.1', (v('docling-ibm-models'), v('docling-slim'))" \
+    && patch -p1 -d "$SP" --forward --batch --no-backup-if-mismatch < /tmp/patches/docling-ibm-models-tableformer.patch \
+    && patch -p1 -d "$SP" --forward --batch --no-backup-if-mismatch < /tmp/patches/docling-table-batch.patch \
+    && python -m compileall -q "$SP/docling_ibm_models/tableformer" "$SP/docling/models/stages/table_structure"

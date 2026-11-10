@@ -1,0 +1,1703 @@
+diff -ruN -x __pycache__ -x .git a/docling_ibm_models/tableformer/data_management/matching_post_processor.py b/docling_ibm_models/tableformer/data_management/matching_post_processor.py
+--- a/docling_ibm_models/tableformer/data_management/matching_post_processor.py
++++ b/docling_ibm_models/tableformer/data_management/matching_post_processor.py
+@@ -5,11 +5,39 @@
+ 
+ import docling_ibm_models.tableformer.settings as s
+ from docling_ibm_models.tableformer.data_management.tf_cell_matcher import CellMatcher
++from docling_ibm_models.tableformer.dcc_flags import on as _dcc_on
+ 
+ LOG_LEVEL = logging.INFO
+ # LOG_LEVEL = logging.DEBUG
+ 
+ 
++def _string_keys(matches):
++    r"""
++    What json.loads(json.dumps(matches)) gives for matches with int keys and
++    match dicts of str keys and int/finite float values (None otherwise): the
++    keys as strings and copies of the match dicts (floats round-trip exactly).
++    """
++    out = {}
++    for key, match_list in matches.items():
++        if type(key) is not int:
++            return None
++        new_list = []
++        for m in match_list:
++            if type(m) is not dict:
++                return None
++            for k, v in m.items():
++                if type(k) is not str:
++                    return None
++                if type(v) is float:
++                    if not math.isfinite(v):
++                        return None
++                elif type(v) is not int:
++                    return None
++            new_list.append(dict(m))
++        out[str(key)] = new_list
++    return out
++
++
+ class MatchingPostProcessor:
+     r"""
+     The MatchingPostProcessor aims to improve the matchings between the predicted table cells and
+@@ -80,6 +108,8 @@
+         bad_table_cells : list of dict
+             cells in a column that don't have match
+         """
++        if _dcc_on("MATCH"):
++            return self._get_good_bad_cells_in_column_fast(table_cells, column, matches)
+         good_table_cells = []
+         bad_table_cells = []
+ 
+@@ -111,6 +141,36 @@
+ 
+         return good_table_cells, bad_table_cells
+ 
++    def _get_good_bad_cells_in_column_fast(self, table_cells, column, matches):
++        r"""
++        _get_good_bad_cells_in_column with the matches counted once: a cell is
++        appended to the good cells once per match that points to it (as the loop
++        over all matches does), unless its class is <= 1.
++        """
++        key = id(matches)
++        cache = getattr(self, "_dcc_match_count", None)
++        if cache is None or cache[0] != key or cache[1] is not matches:
++            counts = {}
++            for match_list in matches.values():
++                for match in match_list:
++                    tid = match["table_cell_id"]
++                    counts[tid] = counts.get(tid, 0) + 1
++            cache = (key, matches, counts)
++            self._dcc_match_count = cache
++        counts = cache[2]
++        good_table_cells = []
++        bad_table_cells = []
++        for cell in table_cells:
++            if cell["column_id"] == column:
++                n = 0
++                if matches and not ("cell_class" in cell and cell["cell_class"] <= 1):
++                    n = counts.get(cell["cell_id"], 0)
++                if n:
++                    good_table_cells.extend([cell] * n)
++                else:
++                    bad_table_cells.append(cell)
++        return good_table_cells, bad_table_cells
++
+     def _delete_column_from_table(self, table_cells, column):
+         r"""
+         1.a. step
+@@ -379,6 +439,10 @@
+             table_cells, pdf_cells
+         )
+         clean_matches = new_matches
++        if _dcc_on("MATCH"):
++            fast = _string_keys(clean_matches)
++            if fast is not None:
++                return fast
+         # Convert to JSON and back to have string keys in the dictionary
+         clean_matches_string = json.dumps(clean_matches)
+         clean_matches = json.loads(clean_matches_string)
+@@ -561,6 +625,10 @@
+         new_tab_columns : integer
+             New number of table columns
+         """
++        if _dcc_on("MATCH"):
++            return self._deduplicate_cells_fast(
++                tab_columns, table_cells, iou_matches, ioc_matches
++            )
+         pdf_cells_in_columns = []
+         total_score_in_columns = []
+ 
+@@ -675,6 +743,84 @@
+ 
+         return new_table_cells, new_matches, new_tab_columns
+ 
++    def _deduplicate_cells_fast(self, tab_columns, table_cells, iou_matches, ioc_matches):
++        r"""
++        _deduplicate_cells with one pass over the matches instead of one per column.
++        The scores of every column are summed in the same order as there.
++        """
++        cols_of_cell = {}
++        for cell in table_cells:
++            col = cell["column_id"]
++            if isinstance(col, int) and 0 <= col < tab_columns:
++                cols = cols_of_cell.setdefault(cell["cell_id"], [])
++                if col not in cols:
++                    cols.append(col)
++        iou_score = [0] * tab_columns
++        ioc_score = [0] * tab_columns
++        pdf_iou = [[] for _ in range(tab_columns)]
++        pdf_ioc = [[] for _ in range(tab_columns)]
++        for iou_key, iou_match_list in iou_matches.items():
++            for m in iou_match_list:
++                for col in cols_of_cell.get(m["table_cell_id"], ()):
++                    if "iou" in m:
++                        iou_score[col] += m["iou"]
++                    elif "iopdf" in m:
++                        iou_score[col] += m["iopdf"]
++                    pdf_iou[col].append(iou_key)
++        for ioc_key, ioc_match_list in ioc_matches.items():
++            for m in ioc_match_list:
++                for col in cols_of_cell.get(m["table_cell_id"], ()):
++                    ioc_score[col] += m["iopdf"]
++                    pdf_ioc[col].append(ioc_key)
++
++        pdf_cells_in_columns = []
++        total_score_in_columns = []
++        for col in range(tab_columns):
++            column_pdf_cells = pdf_iou[col]
++            column_pdf_cells += list(set(pdf_ioc[col]) - set(pdf_iou[col]))
++            pdf_cells_in_columns.append(column_pdf_cells)
++            total_score_in_columns.append(iou_score[col] + ioc_score[col])
++
++        pdf_cells_in_columns = [
++            list(set([x for x in map(lambda x: int(x), le)]))
++            for le in pdf_cells_in_columns
++        ]
++        cols_to_eliminate = []
++        for cl in range(tab_columns - 1):
++            col_a = pdf_cells_in_columns[cl]
++            col_b = pdf_cells_in_columns[cl + 1]
++            score_a = total_score_in_columns[cl]
++            score_b = total_score_in_columns[cl + 1]
++            intsct = list(set(col_a).intersection(col_b))
++            int_prc = 0
++            if len(col_a) > 0:
++                int_prc = len(intsct) / len(col_a)
++            if int_prc > 0.6:
++                if score_a >= score_b:
++                    cols_to_eliminate.append(cl + 1)
++                if score_b > score_a:
++                    cols_to_eliminate.append(cl)
++
++        new_table_cells = []
++        new_matches = {}
++        removed_table_cell_ids = set()
++        new_tab_columns = tab_columns - len(cols_to_eliminate)
++        eliminate = set(cols_to_eliminate)
++        for tab_cell in table_cells:
++            if tab_cell["column_id"] in eliminate:
++                removed_table_cell_ids.add(tab_cell["cell_id"])
++            else:
++                new_table_cells.append(tab_cell)
++        for pdf_cell_id, pdf_cell_matches in ioc_matches.items():
++            new_cell_match = [
++                m
++                for m in pdf_cell_matches
++                if m["table_cell_id"] not in removed_table_cell_ids
++            ]
++            if len(new_cell_match) > 0:
++                new_matches[pdf_cell_id] = new_cell_match
++        return new_table_cells, new_matches, new_tab_columns
++
+     def _do_final_asignment(self, table_cells, iou_matches, ioc_matches):
+         r"""
+         8. step
+@@ -1242,6 +1388,26 @@
+             )
+         return new_matches, new_table_cells, max_cell_id
+ 
++    def _log_final_matches(self, final_matches_wo, table_cells_wo):
++        for pdf_cell_id in range(len(final_matches_wo)):
++            if str(pdf_cell_id) in final_matches_wo:
++                pdf_cell_match = final_matches_wo[str(pdf_cell_id)]
++                if len(pdf_cell_match) > 1:
++                    l1 = "!!! Multiple - {}x pdf cell match with id: {}"
++                    self._log().info(l1.format(len(pdf_cell_match), pdf_cell_id))
++                if pdf_cell_match:
++                    tcellid = pdf_cell_match[0]["table_cell_id"]
++                    for tcell in table_cells_wo:
++                        if tcell["cell_id"] == tcellid:
++                            mrow = tcell["row_id"]
++                            mcol = tcell["column_id"]
++                            l2 = "pdf cell: {} -> row: {} | col:{}"
++                            self._log().debug(l2.format(pdf_cell_id, mrow, mcol))
++            else:
++                self._log().debug(
++                    "!!! pdf cell doesn't have match: {}".format(pdf_cell_id)
++                )
++
+     def _clear_pdf_cells(self, pdf_cells):
+         r"""
+         Clean PDF cells from cells that have an empty string as text
+@@ -1330,6 +1496,7 @@
+         # of other cells in a minimal-grid column
+ 
+         self._log().debug("Start prediction post-processing...")
++        self._dcc_match_count = None
+         table_cells = matching_details["table_cells"]
+         pdf_cells = self._clear_pdf_cells(matching_details["pdf_cells"])
+         matches = matching_details["matches"]
+@@ -1476,24 +1643,16 @@
+         self._log().debug("*** table_cells_wo")
+         self._log().debug(table_cells_wo)
+ 
+-        for pdf_cell_id in range(len(final_matches_wo)):
+-            if str(pdf_cell_id) in final_matches_wo:
+-                pdf_cell_match = final_matches_wo[str(pdf_cell_id)]
+-                if len(pdf_cell_match) > 1:
++        if _dcc_on("MATCH") and not self._log().isEnabledFor(logging.DEBUG):
++            # Only the info line of the loop below: its table cell lookup is
++            # for the debug lines
++            for pdf_cell_id in range(len(final_matches_wo)):
++                pdf_cell_match = final_matches_wo.get(str(pdf_cell_id))
++                if pdf_cell_match is not None and len(pdf_cell_match) > 1:
+                     l1 = "!!! Multiple - {}x pdf cell match with id: {}"
+                     self._log().info(l1.format(len(pdf_cell_match), pdf_cell_id))
+-                if pdf_cell_match:
+-                    tcellid = pdf_cell_match[0]["table_cell_id"]
+-                    for tcell in table_cells_wo:
+-                        if tcell["cell_id"] == tcellid:
+-                            mrow = tcell["row_id"]
+-                            mcol = tcell["column_id"]
+-                            l2 = "pdf cell: {} -> row: {} | col:{}"
+-                            self._log().debug(l2.format(pdf_cell_id, mrow, mcol))
+-            else:
+-                self._log().debug(
+-                    "!!! pdf cell doesn't have match: {}".format(pdf_cell_id)
+-                )
++        else:
++            self._log_final_matches(final_matches_wo, table_cells_wo)
+ 
+         # Example of an object:
+         # matching_details = {
+diff -ruN -x __pycache__ -x .git a/docling_ibm_models/tableformer/data_management/tf_cell_matcher.py b/docling_ibm_models/tableformer/data_management/tf_cell_matcher.py
+--- a/docling_ibm_models/tableformer/data_management/tf_cell_matcher.py
++++ b/docling_ibm_models/tableformer/data_management/tf_cell_matcher.py
+@@ -6,6 +6,7 @@
+ 
+ import docling_ibm_models.tableformer.otsl as otsl
+ import docling_ibm_models.tableformer.settings as s
++from docling_ibm_models.tableformer.dcc_flags import on as _dcc_on
+ 
+ # LOG_LEVEL = logging.INFO
+ # LOG_LEVEL = logging.DEBUG
+@@ -77,6 +78,30 @@
+     return i_bbox
+ 
+ 
++def _copy_tokens(tokens):
++    r"""
++    Copy of the pdf tokens for matching: what copy.deepcopy gives for tokens with
++    "id", "text" and a "bbox" dict or list, without its generic recursion.
++    """
++    out = []
++    for token in tokens:
++        new = {}
++        for k, v in token.items():
++            if isinstance(v, (str, int, float, bool)) or v is None:
++                new[k] = v
++            elif k == "bbox" and isinstance(v, dict):
++                new[k] = {
++                    bk: bv if isinstance(bv, (str, int, float)) else copy.deepcopy(bv)
++                    for bk, bv in v.items()
++                }
++            elif k == "bbox" and isinstance(v, list):
++                new[k] = list(v)
++            else:
++                new[k] = copy.deepcopy(v)
++        out.append(new)
++    return out
++
++
+ class CellMatcher:
+     r"""
+     Match the table cells to the pdf page cells.
+@@ -126,7 +151,10 @@
+         matching_details : dict
+             Dictionary with all details about the mathings between the table and pdf cells
+         """
+-        pdf_cells = copy.deepcopy(iocr_page["tokens"])
++        if _dcc_on("MATCH"):
++            pdf_cells = _copy_tokens(iocr_page["tokens"])
++        else:
++            pdf_cells = copy.deepcopy(iocr_page["tokens"])
+         if len(pdf_cells) > 0:
+             for word in pdf_cells:
+                 if isinstance(word["bbox"], list):
+@@ -485,6 +513,109 @@
+         int
+             Number of total matches
+         """
++        if not _dcc_on("MATCH"):
++            return self._intersection_over_pdf_match_loop(table_cells, pdf_cells)
++        if len(table_cells) == 0 or len(pdf_cells) == 0:
++            return {}, 0
++        # A later table cell with the same cell_id and bbox as an earlier one
++        # (the post-processor repeats a cell once per match) only produces matches
++        # that the loop's duplicate check drops: leave it out
++        seen = {}
++        unique_cells = []
++        for cell in table_cells:
++            first = seen.get(cell["cell_id"])
++            if first is None:
++                seen[cell["cell_id"]] = [cell]
++                unique_cells.append(cell)
++            elif not any(f is cell or f["bbox"] == cell["bbox"] for f in first):
++                first.append(cell)
++                unique_cells.append(cell)
++        table_cells = unique_cells
++        # All pairs at once with numpy: the same float64 operations as
++        # find_intersection on Python floats, so the same iopdf values. NaN
++        # coordinates (where Python's min/max differ from numpy's) and odd shapes
++        # take the original loop.
++        try:
++            t = np.asarray([c["bbox"] for c in table_cells], dtype=np.float64)
++            p = np.asarray([c["bbox"] for c in pdf_cells], dtype=np.float64)
++        except (TypeError, ValueError):
++            t = p = None
++        if (
++            t is None
++            or t.ndim != 2
++            or p.ndim != 2
++            or t.shape[1] != 4
++            or p.shape[1] != 4
++            or np.isnan(t).any()
++            or np.isnan(p).any()
++        ):
++            return self._intersection_over_pdf_match_loop(table_cells, pdf_cells)
++
++        p_areas = (p[:, 2] - p[:, 0]) * (p[:, 3] - p[:, 1])
++        # Candidate pairs: pdf cells whose top lies in [t1 - max height - 1, t3]
++        # (a superset of the y overlaps; the margin covers rounding), found
++        # by binary search on the pdf cells sorted by top. Then the exact tests.
++        order = np.argsort(p[:, 1], kind="stable")
++        tops = p[order, 1]
++        h_max = max(float(np.max(p[:, 3] - p[:, 1])), 0.0) + 1.0
++        lo = np.searchsorted(tops, t[:, 1] - h_max, side="left")
++        hi = np.searchsorted(tops, t[:, 3], side="right")
++        n = np.maximum(hi - lo, 0)
++        ii = np.repeat(np.arange(len(t)), n)
++        starts = np.repeat(np.cumsum(n) - n, n)
++        jj = order[np.repeat(lo, n) + np.arange(int(n.sum())) - starts]
++        tc, pc = t[ii], p[jj]
++        keep = ~(
++            (tc[:, 2] < pc[:, 0])
++            | (pc[:, 2] < tc[:, 0])
++            | (tc[:, 1] > pc[:, 3])
++            | (pc[:, 1] > tc[:, 3])
++        )
++        ii, jj, tc, pc = ii[keep], jj[keep], tc[keep], pc[keep]
++        srt = np.lexsort((jj, ii))  # the (table cell, pdf cell) order of the loop
++        ii, jj, tc, pc = ii[srt], jj[srt], tc[srt], pc[srt]
++        # Same operations as find_intersection and the loop below, per pair
++        i_area = (np.minimum(tc[:, 2], pc[:, 2]) - np.maximum(tc[:, 0], pc[:, 0])) * (
++            np.minimum(tc[:, 3], pc[:, 3]) - np.maximum(tc[:, 1], pc[:, 1])
++        )
++        pa = p_areas[jj]
++        with np.errstate(divide="ignore", invalid="ignore"):
++            iopdf = np.where(pa > 0, i_area / np.where(pa > 0, pa, 1), 0)
++        keep = iopdf > 0
++        ii, jj, iopdf = ii[keep].tolist(), jj[keep].tolist(), iopdf[keep].tolist()
++
++        # key: pdf_cell_id, value: list of TableCell that fall inside that pdf_cell
++        matches = {}
++        matches_counter = 0
++        tids = [c["cell_id"] for c in table_cells]
++        pids = [c["id"] for c in pdf_cells]
++        if len(set(tids)) == len(tids) and len(set(pids)) == len(pids):
++            # Unique ids: no pair can repeat a match, so skip the list scans
++            for i, j, v in zip(ii, jj, iopdf):
++                match = {"table_cell_id": tids[i], "iopdf": v}
++                lst = matches.get(pids[j])
++                if lst is None:
++                    matches[pids[j]] = [match]
++                else:
++                    lst.append(match)
++            return matches, len(ii)
++        for i, j, v in zip(ii, jj, iopdf):  # row-major: the order of the loop
++            pdf_cell_id = pdf_cells[j]["id"]
++            match = {"table_cell_id": table_cells[i]["cell_id"], "iopdf": v}
++            if pdf_cell_id not in matches:
++                matches[pdf_cell_id] = [match]
++                matches_counter += 1
++            else:
++                # Check if the same match was not already counted
++                if match not in matches[pdf_cell_id]:
++                    matches[pdf_cell_id].append(match)
++                    matches_counter += 1
++        return matches, matches_counter
++
++    def _intersection_over_pdf_match_loop(self, table_cells, pdf_cells):
++        r"""
++        Reference implementation of _intersection_over_pdf_match (Python loops).
++        """
+         pdf_bboxes = np.asarray([p["bbox"] for p in pdf_cells])
+         pdf_bboxes_areas = (pdf_bboxes[:, 2] - pdf_bboxes[:, 0]) * (
+             pdf_bboxes[:, 3] - pdf_bboxes[:, 1]
+diff -ruN -x __pycache__ -x .git a/docling_ibm_models/tableformer/data_management/tf_predictor.py b/docling_ibm_models/tableformer/data_management/tf_predictor.py
+--- a/docling_ibm_models/tableformer/data_management/tf_predictor.py
++++ b/docling_ibm_models/tableformer/data_management/tf_predictor.py
+@@ -1,6 +1,7 @@
+ import glob
+ import json
+ import logging
++import math
+ import os
+ import threading
+ from bisect import bisect_left
+@@ -24,6 +25,7 @@
+ from docling_ibm_models.tableformer.models.table04_rs.tablemodel04_rs import (
+     TableModel04_rs,
+ )
++from docling_ibm_models.tableformer.dcc_flags import on as _dcc_on
+ from docling_ibm_models.tableformer.otsl import otsl_to_html
+ from docling_ibm_models.tableformer.utils.app_profiler import AggProfiler
+ 
+@@ -86,6 +88,36 @@
+     return isSquare
+ 
+ 
++def _resized_crop(page_image, rows: slice, cols: slice):
++    r"""
++    page_image resized to height 1024 with INTER_AREA as TFPredictor.resize_img
++    does, cropped to [rows, cols], resizing only the rows needed (DCC_TABLES_RESIZE).
++
++    The vertical scale h / 1024 is a dyadic rational, so source row
++    k * h / g and output row k * 1024 / g (g = gcd(h, 1024)) are both integers:
++    a band of whole such blocks resized on its own has exactly the area weights
++    of the full resize (same scale, same cell offsets; at the band's end the
++    clamped last row gets the same weight as the full row it replaces).
++    """
++    h, w = page_image.shape[:2]
++    out_w = int(w * (1024 / float(h)))
++    start, stop, _ = rows.indices(1024)
++    g = math.gcd(h, 1024)
++    block_out, block_src = 1024 // g, h // g
++    if stop <= start or g == 1:
++        resized = cv2.resize(page_image, (out_w, 1024), interpolation=cv2.INTER_AREA)
++        return resized[rows, cols]
++    k0 = start // block_out
++    k1 = -(-stop // block_out)
++    band = cv2.resize(
++        page_image[k0 * block_src : k1 * block_src],
++        (out_w, (k1 - k0) * block_out),
++        interpolation=cv2.INTER_AREA,
++    )
++    off = k0 * block_out
++    return band[start - off : stop - off, cols]
++
++
+ class TFPredictor:
+     r"""
+     Table predictions for the in-memory Docling API
+@@ -380,24 +412,31 @@
+         tf_output = []
+         tf_cells_map = {}
+         max_row_idx = 0
++        if _dcc_on("MATCH"):
++            # pdf cells by id, in list order: the same cells as the scans below
++            by_id = {}
++            for pdf_cell in pdf_cells:
++                by_id.setdefault(pdf_cell["id"], []).append(pdf_cell)
++            pdf_cells_of = lambda cell_id: by_id.get(cell_id, ())  # noqa: E731
++        else:
++            pdf_cells_of = lambda cell_id: (  # noqa: E731
++                c for c in pdf_cells if c["id"] == cell_id
++            )
+ 
+         for docling_item in docling_output:
+             r_idx = str(docling_item["start_row_offset_idx"])
+             c_idx = str(docling_item["start_col_offset_idx"])
+             cell_key = c_idx + "_" + r_idx
+             if cell_key in tf_cells_map:
+-                for pdf_cell in pdf_cells:
+-                    if pdf_cell["id"] == docling_item["cell_id"]:
+-                        text_cell_bbox = {
+-                            "b": pdf_cell["bbox"][3],
+-                            "l": pdf_cell["bbox"][0],
+-                            "r": pdf_cell["bbox"][2],
+-                            "t": pdf_cell["bbox"][1],
+-                            "token": pdf_cell["text"],
+-                        }
+-                        tf_cells_map[cell_key]["text_cell_bboxes"].append(
+-                            text_cell_bbox
+-                        )
++                for pdf_cell in pdf_cells_of(docling_item["cell_id"]):
++                    text_cell_bbox = {
++                        "b": pdf_cell["bbox"][3],
++                        "l": pdf_cell["bbox"][0],
++                        "r": pdf_cell["bbox"][2],
++                        "t": pdf_cell["bbox"][1],
++                        "token": pdf_cell["text"],
++                    }
++                    tf_cells_map[cell_key]["text_cell_bboxes"].append(text_cell_bbox)
+             else:
+                 tf_cells_map[cell_key] = {
+                     "bbox": docling_item["bbox"],
+@@ -417,18 +456,15 @@
+                 if docling_item["start_row_offset_idx"] > max_row_idx:
+                     max_row_idx = docling_item["start_row_offset_idx"]
+ 
+-                for pdf_cell in pdf_cells:
+-                    if pdf_cell["id"] == docling_item["cell_id"]:
+-                        text_cell_bbox = {
+-                            "b": pdf_cell["bbox"][3],
+-                            "l": pdf_cell["bbox"][0],
+-                            "r": pdf_cell["bbox"][2],
+-                            "t": pdf_cell["bbox"][1],
+-                            "token": pdf_cell["text"],
+-                        }
+-                        tf_cells_map[cell_key]["text_cell_bboxes"].append(
+-                            text_cell_bbox
+-                        )
++                for pdf_cell in pdf_cells_of(docling_item["cell_id"]):
++                    text_cell_bbox = {
++                        "b": pdf_cell["bbox"][3],
++                        "l": pdf_cell["bbox"][0],
++                        "r": pdf_cell["bbox"][2],
++                        "t": pdf_cell["bbox"][1],
++                        "token": pdf_cell["text"],
++                    }
++                    tf_cells_map[cell_key]["text_cell_bboxes"].append(text_cell_bbox)
+ 
+         for k in tf_cells_map:
+             tf_output.append(tf_cells_map[k])
+@@ -532,9 +568,17 @@
+         multi_tf_output = []
+         page_image = iocr_page["image"]
+ 
+-        # Prevent large image submission, by resizing input
+-        page_image_resized, scale_factor = self.resize_img(page_image, height=1024)
++        bands = _dcc_on("RESIZE")
++        if bands:
++            # (DCC_TABLES_RESIZE) resize only the rows of each table, see _resized_crop
++            scale_factor = 1024 / float(page_image.shape[0])
++        else:
++            # Prevent large image submission, by resizing input
++            page_image_resized, scale_factor = self.resize_img(
++                page_image, height=1024
++            )
+ 
++        table_images = []
+         for table_bbox in table_bboxes:
+             # Downscale table bounding box to the size of new image
+             table_bbox[0] = table_bbox[0] * scale_factor
+@@ -542,11 +586,19 @@
+             table_bbox[2] = table_bbox[2] * scale_factor
+             table_bbox[3] = table_bbox[3] * scale_factor
+ 
+-            table_image = page_image_resized[
+-                round(table_bbox[1]) : round(table_bbox[3]),
+-                round(table_bbox[0]) : round(table_bbox[2]),
+-            ]
+-            # table_image = page_image
++            rows = slice(round(table_bbox[1]), round(table_bbox[3]))
++            cols = slice(round(table_bbox[0]), round(table_bbox[2]))
++            if bands:
++                table_images.append(_resized_crop(page_image, rows, cols))
++            else:
++                table_images.append(page_image_resized[rows, cols])
++
++        # Run the model on all tables of the page at once
++        model_outputs = self._predict_tables(table_images)
++
++        for table_bbox, table_image, model_output in zip(
++            table_bboxes, table_images, model_outputs
++        ):
+             # Predict
+             if do_matching:
+                 tf_responses, predict_details = self.predict(
+@@ -556,10 +608,16 @@
+                     scale_factor,
+                     None,
+                     correct_overlapping_cells,
++                    model_output=model_output,
+                 )
+             else:
+                 tf_responses, predict_details = self.predict_dummy(
+-                    iocr_page, table_bbox, table_image, scale_factor, None
++                    iocr_page,
++                    table_bbox,
++                    table_image,
++                    scale_factor,
++                    None,
++                    model_output=model_output,
+                 )
+ 
+             # ======================================================================================
+@@ -588,8 +646,126 @@
+         # Return grouped results of predictions
+         return multi_tf_output
+ 
++    def multi_page_predict(
++        self,
++        requests,
++        do_matching=True,
++        correct_overlapping_cells=False,
++        sort_row_col_indexes=True,
++    ):
++        r"""
++        multi_table_predict for the tables of several pages (or several calls with
++        their own tokens) at once: every page image is resized once, and the model
++        runs on all table crops together (batched decoding).
++
++        Parameters
++        ----------
++        requests : list of (iocr_page, table_bboxes)
++            As the arguments of multi_table_predict. Pages that share the same
++            image array are resized once.
++
++        Returns
++        -------
++        list of the multi_table_predict results, one per request
++        """
++        resized = {}
++        bands = _dcc_on("RESIZE")
++        jobs = []  # (request index, iocr_page, table_bbox, table_image, scale_factor)
++        for r, (iocr_page, table_bboxes) in enumerate(requests):
++            page_image = iocr_page["image"]
++            key = id(page_image)
++            if bands:
++                scale_factor = 1024 / float(page_image.shape[0])
++            else:
++                if key not in resized:
++                    resized[key] = (
++                        page_image,
++                        self.resize_img(page_image, height=1024),
++                    )
++                page_image_resized, scale_factor = resized[key][1]
++            for table_bbox in table_bboxes:
++                table_bbox[0] = table_bbox[0] * scale_factor
++                table_bbox[1] = table_bbox[1] * scale_factor
++                table_bbox[2] = table_bbox[2] * scale_factor
++                table_bbox[3] = table_bbox[3] * scale_factor
++                rows = slice(round(table_bbox[1]), round(table_bbox[3]))
++                cols = slice(round(table_bbox[0]), round(table_bbox[2]))
++                if bands:
++                    table_image = _resized_crop(page_image, rows, cols)
++                else:
++                    table_image = page_image_resized[rows, cols]
++                jobs.append((r, iocr_page, table_bbox, table_image, scale_factor))
++
++        model_outputs = self._predict_tables([j[3] for j in jobs])
++
++        results = [[] for _ in requests]
++        for (r, iocr_page, table_bbox, table_image, scale_factor), model_output in zip(
++            jobs, model_outputs
++        ):
++            if do_matching:
++                tf_responses, predict_details = self.predict(
++                    iocr_page,
++                    table_bbox,
++                    table_image,
++                    scale_factor,
++                    None,
++                    correct_overlapping_cells,
++                    model_output=model_output,
++                )
++            else:
++                tf_responses, predict_details = self.predict_dummy(
++                    iocr_page,
++                    table_bbox,
++                    table_image,
++                    scale_factor,
++                    None,
++                    model_output=model_output,
++                )
++            if sort_row_col_indexes:
++                num_cols, num_rows = self._compress_row_col_indexes(tf_responses)
++                predict_details["num_cols"] = num_cols
++                predict_details["num_rows"] = num_rows
++            else:
++                otsl_seq = predict_details["prediction"]["rs_seq"]
++                predict_details["num_cols"] = otsl_seq.index("nl")
++                predict_details["num_rows"] = otsl_seq.count("nl")
++            results[r].append(
++                {"tf_responses": tf_responses, "predict_details": predict_details}
++            )
++            table_bbox[0] = table_bbox[0] / scale_factor
++            table_bbox[1] = table_bbox[1] / scale_factor
++            table_bbox[2] = table_bbox[2] / scale_factor
++            table_bbox[3] = table_bbox[3] / scale_factor
++        return results
++
++    def _predict_tables(self, table_images):
++        r"""
++        Run the model on several table images at once
++
++        Parameters
++        ----------
++        table_images : list of cv2.Mat
++            The table crops
++
++        Returns
++        -------
++        list of (pred_tag_seq, outputs_class, outputs_coord), one per table
++        """
++        if len(table_images) == 0:
++            return []
++        max_steps = self._config["predict"]["max_steps"]
++        image_batch = torch.cat([self._prepare_image(img) for img in table_images])
++        with torch.no_grad():
++            return self._model.predict_batch(image_batch, max_steps)
++
+     def predict_dummy(
+-        self, iocr_page, table_bbox, table_image, scale_factor, eval_res_preds=None
++        self,
++        iocr_page,
++        table_bbox,
++        table_image,
++        scale_factor,
++        eval_res_preds=None,
++        model_output=None,
+     ):
+         r"""
+         Predict the table out of an image in memory
+@@ -600,6 +776,8 @@
+             Docling provided table data
+         eval_res_preds : dict
+             Ready predictions provided by the evaluation results
++        model_output : tuple
++            Ready output of the model for this table (from _predict_tables)
+ 
+         Returns
+         -------
+@@ -611,9 +789,6 @@
+         """
+         AggProfiler().start_agg(self._prof)
+ 
+-        max_steps = self._config["predict"]["max_steps"]
+-        beam_size = self._config["predict"]["beam_size"]
+-        image_batch = self._prepare_image(table_image)
+         # Make predictions
+         prediction = {}
+ 
+@@ -625,8 +800,8 @@
+                 prediction["bboxes"] = eval_res_preds["bboxes"]
+                 pred_tag_seq = eval_res_preds["tag_seq"]
+             elif self._config["predict"]["bbox"]:
+-                pred_tag_seq, outputs_class, outputs_coord = self._model.predict(
+-                    image_batch, max_steps, beam_size
++                pred_tag_seq, outputs_class, outputs_coord = (
++                    model_output or self._predict_tables([table_image])[0]
+                 )
+ 
+                 if outputs_coord is not None:
+@@ -649,8 +824,8 @@
+                 if self._remove_padding:
+                     pred_tag_seq, _ = u.remove_padding(pred_tag_seq)
+             else:
+-                pred_tag_seq, _, _ = self._model.predict(
+-                    image_batch, max_steps, beam_size
++                pred_tag_seq, _, _ = (
++                    model_output or self._predict_tables([table_image])[0]
+                 )
+                 # Check if padding should be removed
+                 if self._remove_padding:
+@@ -719,6 +894,7 @@
+         scale_factor,
+         eval_res_preds=None,
+         correct_overlapping_cells=False,
++        model_output=None,
+     ):
+         r"""
+         Predict the table out of an image in memory
+@@ -729,6 +905,8 @@
+             Docling provided table data
+         eval_res_preds : dict
+             Ready predictions provided by the evaluation results
++        model_output : tuple
++            Ready output of the model for this table (from _predict_tables)
+         correct_overlapping_cells : boolean
+             Enables or disables last post-processing step, that fixes cell bboxes to remove overlap
+ 
+@@ -742,9 +920,6 @@
+         """
+         AggProfiler().start_agg(self._prof)
+ 
+-        max_steps = self._config["predict"]["max_steps"]
+-        beam_size = self._config["predict"]["beam_size"]
+-        image_batch = self._prepare_image(table_image)
+         # Make predictions
+         prediction = {}
+ 
+@@ -756,8 +931,8 @@
+                 prediction["bboxes"] = eval_res_preds["bboxes"]
+                 pred_tag_seq = eval_res_preds["tag_seq"]
+             elif self._config["predict"]["bbox"]:
+-                pred_tag_seq, outputs_class, outputs_coord = self._model.predict(
+-                    image_batch, max_steps, beam_size
++                pred_tag_seq, outputs_class, outputs_coord = (
++                    model_output or self._predict_tables([table_image])[0]
+                 )
+ 
+                 if outputs_coord is not None:
+@@ -780,8 +955,8 @@
+                 if self._remove_padding:
+                     pred_tag_seq, _ = u.remove_padding(pred_tag_seq)
+             else:
+-                pred_tag_seq, _, _ = self._model.predict(
+-                    image_batch, max_steps, beam_size
++                pred_tag_seq, _, _ = (
++                    model_output or self._predict_tables([table_image])[0]
+                 )
+                 # Check if padding should be removed
+                 if self._remove_padding:
+@@ -925,6 +1100,12 @@
+ 
+         # format output to look similar to tests/examples/tf_gte_output_2.json
+         tf_cell_list = []
++        first_cell = None
++        if _dcc_on("MATCH"):
++            # The first table cell of every cell_id, as the filter below picks
++            first_cell = {}
++            for table_cell in table_cells:
++                first_cell.setdefault(table_cell["cell_id"], table_cell)
+         for pdf_cell_id, pdf_cell_matches in matches.items():
+             tf_cell = {
+                 "bbox": {},  # b,l,r,t,token
+@@ -949,9 +1130,14 @@
+ 
+             for match in pdf_cell_matches:
+                 tm = match["table_cell_id"]
+-                tcl = list(
+-                    filter(lambda table_cell: table_cell["cell_id"] == tm, table_cells)
+-                )
++                if first_cell is not None:
++                    tcl = [first_cell[tm]] if tm in first_cell else []
++                else:
++                    tcl = list(
++                        filter(
++                            lambda table_cell: table_cell["cell_id"] == tm, table_cells
++                        )
++                    )
+                 if len(tcl) > 0:
+                     table_cell = tcl[0]
+                     row_ids.add(table_cell["row_id"])
+@@ -1021,7 +1207,20 @@
+         resized_size = self._config["dataset"]["resized_image"]
+         resize = T.Resize([resized_size, resized_size])
+ 
+-        img, _ = normalize(mat_image, None)
++        mean = self._config["dataset"]["image_normalization"]["mean"]
++        std = self._config["dataset"]["image_normalization"]["std"]
++        if (
++            _dcc_on("PREP")
++            and isinstance(mat_image, np.ndarray)
++            and mat_image.dtype == np.uint8
++            and mat_image.ndim == 3
++            and mat_image.shape[2] == len(mean) == len(std) <= 4
++        ):
++            # (DCC_TABLES_PREP) Normalise with a lookup table of the 256 values per
++            # channel, computed with the same operations as T.Normalize
++            img = cv2.LUT(np.ascontiguousarray(mat_image), self._norm_lut(mean, std))
++        else:
++            img, _ = normalize(mat_image, None)
+         img, _ = resize(img, None)
+ 
+         img = img.transpose(2, 1, 0)  # (channels, width, height)
+@@ -1030,6 +1229,22 @@
+         image_batch = image_batch.to(device=self._device)
+         return image_batch
+ 
++    def _norm_lut(self, mean, std):
++        key = (tuple(mean), tuple(std))
++        cached = getattr(self, "_dcc_norm_lut", None)
++        if cached is None or cached[0] != key:
++            values = np.arange(256, dtype=np.float32)
++            lut = np.stack(
++                [
++                    (values - 255.0 * np.array(mean)[k]) / np.array(std)[k]
++                    for k in range(len(mean))
++                ],
++                axis=1,
++            ).reshape(1, 256, len(mean))
++            cached = (key, lut)
++            self._dcc_norm_lut = cached
++        return cached[1]
++
+     def _get_html_tags(self, seq):
+         r"""
+         Convert indices to actual html tags
+diff -ruN -x __pycache__ -x .git a/docling_ibm_models/tableformer/dcc_flags.py b/docling_ibm_models/tableformer/dcc_flags.py
+--- a/docling_ibm_models/tableformer/dcc_flags.py
++++ b/docling_ibm_models/tableformer/dcc_flags.py
+@@ -0,0 +1,13 @@
++"""Switches for the TableFormer speed-ups of the DCC docling-serve image.
++
++``DCC_TABLES_<NAME>=0`` turns one off (the upstream code path), ``=1`` turns one on.
++All give the same tables; RESIZE is off by default because it gained nothing measurable.
++"""
++
++import os
++
++_DEFAULTS = {"MATCH": "1", "DECODER": "1", "PREP": "1", "RESIZE": "0"}
++
++
++def on(name: str) -> bool:
++    return os.environ.get(f"DCC_TABLES_{name}", _DEFAULTS.get(name, "0")) == "1"
+diff -ruN -x __pycache__ -x .git a/docling_ibm_models/tableformer/models/table04_rs/bbox_decoder_rs.py b/docling_ibm_models/tableformer/models/table04_rs/bbox_decoder_rs.py
+--- a/docling_ibm_models/tableformer/models/table04_rs/bbox_decoder_rs.py
++++ b/docling_ibm_models/tableformer/models/table04_rs/bbox_decoder_rs.py
+@@ -130,9 +130,15 @@
+             self._logger = s.get_custom_logger(self.__class__.__name__, LOG_LEVEL)
+         return self._logger
+ 
+-    def inference(self, encoder_out, tag_H):
++    def inference(self, encoder_out, tag_H, chunk_size=128):
+         """
+         Inference on test images with beam search
++
++        :param encoder_out: CNN output of one table (1, 28, 28, C)
++        :param tag_H: tag decoder output per cell, a tensor (num_cells, tag_decoder_dim)
++                      or a list of (1, tag_decoder_dim) tensors
++        :param chunk_size: cells decoded together (bounds the attention intermediate
++                           of num_cells x num_pixels x attention_dim)
+         """
+         if hasattr(self, "_input_filter"):
+             encoder_out = self._input_filter(encoder_out.permute(0, 3, 1, 2)).permute(
+@@ -144,14 +150,19 @@
+         # Flatten encoding (1, num_pixels, encoder_dim)
+         encoder_out = encoder_out.view(1, -1, encoder_dim)
+ 
+-        num_cells = len(tag_H)
++        if isinstance(tag_H, (list, tuple)):
++            if len(tag_H) == 0:
++                return torch.empty(0), torch.empty(0)
++            tag_H = torch.cat(tag_H)
++        num_cells = tag_H.size(0)
++        if num_cells == 0:
++            return torch.empty(0), torch.empty(0)
++
+         predictions_bboxes = []
+         predictions_classes = []
+-
+-        for c_id in range(num_cells):
+-            # Start decoding
+-            h = self._init_hidden_state(encoder_out, 1)
+-            cell_tag_H = tag_H[c_id]
++        for start in range(0, num_cells, chunk_size):
++            cell_tag_H = tag_H[start : start + chunk_size]
++            h = self._init_hidden_state(encoder_out, cell_tag_H.size(0))
+             awe, _ = self._attention(encoder_out, cell_tag_H, h)
+             gate = self._sigmoid(self._f_beta(h))
+             awe = gate * awe
+@@ -159,14 +170,4 @@
+ 
+             predictions_bboxes.append(self._bbox_embed(h).sigmoid())
+             predictions_classes.append(self._class_embed(h))
+-        if len(predictions_bboxes) > 0:
+-            predictions_bboxes = torch.stack([x[0] for x in predictions_bboxes])
+-        else:
+-            predictions_bboxes = torch.empty(0)
+-
+-        if len(predictions_classes) > 0:
+-            predictions_classes = torch.stack([x[0] for x in predictions_classes])
+-        else:
+-            predictions_classes = torch.empty(0)
+-
+-        return predictions_classes, predictions_bboxes
++        return torch.cat(predictions_classes), torch.cat(predictions_bboxes)
+diff -ruN -x __pycache__ -x .git a/docling_ibm_models/tableformer/models/table04_rs/tablemodel04_rs.py b/docling_ibm_models/tableformer/models/table04_rs/tablemodel04_rs.py
+--- a/docling_ibm_models/tableformer/models/table04_rs/tablemodel04_rs.py
++++ b/docling_ibm_models/tableformer/models/table04_rs/tablemodel04_rs.py
+@@ -1,4 +1,5 @@
+ import logging
++import os
+ 
+ import torch
+ import torch.nn as nn
+@@ -7,9 +8,13 @@
+ from docling_ibm_models.tableformer.models.common.base_model import BaseModel
+ from docling_ibm_models.tableformer.models.table04_rs.bbox_decoder_rs import BBoxDecoder
+ from docling_ibm_models.tableformer.models.table04_rs.encoder04_rs import Encoder04
++from docling_ibm_models.tableformer.models.table04_rs.tag_decoder_rs import (
++    TagDecoders,
++)
+ from docling_ibm_models.tableformer.models.table04_rs.transformer_rs import (
+     Tag_Transformer,
+ )
++from docling_ibm_models.tableformer.dcc_flags import on as _dcc_on
+ from docling_ibm_models.tableformer.utils.app_profiler import AggProfiler
+ 
+ LOG_LEVEL = logging.WARN
+@@ -86,6 +91,8 @@
+             self._dropout,
+         ).to(device)
+ 
++        self._tag_decoders = None
++
+     _logger = None
+ 
+     def _log(self):
+@@ -127,167 +134,111 @@
+         outputs_coord : tensor(x, 4)
+             Coords of predicted bboxes. x is the number of bboxes. Each bbox is in [cxcywh] format
+         """
+-        AggProfiler().begin("predict_total", self._prof)
++        return self.predict_batch(imgs, max_steps)[0]
++
++    @torch.no_grad()
++    def predict_batch(self, imgs, max_steps):
++        r"""
++        Inference for several tables at once.
+ 
+-        # Invoke encoder
++        Parameters
++        ----------
++        imgs : tensor FloatTensor - torch.Size([n, 3, 448, 448])
++            Preprocessed table images
++        max_steps : int
++            Maximum number of tags per table
++
++        Returns
++        -------
++        list of (seq, outputs_class, outputs_coord), one per table, as predict()
++        """
++        AggProfiler().begin("predict_total", self._prof)
+         self._tag_transformer.eval()
+-        enc_out = self._encoder(imgs)
+-        AggProfiler().end("model_encoder", self._prof)
++        max_steps = min(max_steps, self._max_pred_len)
++        if self._tag_decoders is None:
++            # DCC_TABLES_MAXB: tables decoded together (default 4, as before)
++            maxb = int(os.environ.get("DCC_TABLES_MAXB", "4") or 4)
++            self._tag_decoders = TagDecoders(self, self._max_pred_len, maxb)
++        decoders = self._tag_decoders
++
++        results = []
++        with decoders.lock:
++            for s in range(0, imgs.size(0), decoders.max_batch_size):
++                chunk = imgs[s : s + decoders.max_batch_size]
++                # The encoders run per table: batching the CNN changes the
++                # results by more than float noise (different conv kernels)
++                encoded = [self._encode(chunk[i : i + 1]) for i in range(chunk.size(0))]
++                memory = torch.cat([m for _, m in encoded], dim=1)
++                AggProfiler().begin("model_tag_transformer_decoder", self._prof)
++                seqs, hidden = decoders.get(chunk.size(0)).decode(memory, max_steps)
++                AggProfiler().end("model_tag_transformer_decoder", self._prof)
++                for i, seq in enumerate(seqs):
++                    results.append(self._table_output(seq, hidden[:, i], encoded[i][0]))
++        AggProfiler().end("predict_total", self._prof)
++        return results
+ 
+-        word_map = self._init_data["word_map"]["word_map_tag"]
++    def _encode(self, img):
++        r"""
++        CNN encoder and tag transformer encoder of one table.
++
++        Returns the CNN output (1, 28, 28, C) and the encoder memory (784, 1, 512).
++        """
++        enc_out = self._encoder(img)
++        AggProfiler().end("model_encoder", self._prof)
+         n_heads = self._tag_transformer._n_heads
+-        # [1, 28, 28, 512]
+         encoder_out = self._tag_transformer._input_filter(
+             enc_out.permute(0, 3, 1, 2)
+         ).permute(0, 2, 3, 1)
+-
+         batch_size = encoder_out.size(0)
+         encoder_dim = encoder_out.size(-1)
+         enc_inputs = encoder_out.view(batch_size, -1, encoder_dim).to(self._device)
+         enc_inputs = enc_inputs.permute(1, 0, 2)
+         positions = enc_inputs.shape[0]
+-
+         encoder_mask = torch.zeros(
+             (batch_size * n_heads, positions, positions), device=self._device
+         ) == torch.ones(
+             (batch_size * n_heads, positions, positions), device=self._device
+         )
+-
+-        # Invoking tag transformer encoder before the loop to save time
+         AggProfiler().begin("model_tag_transformer_encoder", self._prof)
+-        encoder_out = self._tag_transformer._encoder(enc_inputs, mask=encoder_mask)
++        memory = self._tag_transformer._encoder(enc_inputs, mask=encoder_mask)
+         AggProfiler().end("model_tag_transformer_encoder", self._prof)
++        return enc_out, memory
+ 
+-        decoded_tags = (
+-            torch.LongTensor([word_map["<start>"]]).to(self._device).unsqueeze(1)
+-        )
+-        output_tags = []
+-        cache = None
+-        tag_H_buf = []
+-
+-        skip_next_tag = True
+-        prev_tag_ucel = False
+-        line_num = 0
+-
+-        # Populate bboxes_to_merge, indexes of first lcel, and last cell in a span
+-        first_lcel = True
+-        bboxes_to_merge = {}
+-        cur_bbox_ind = -1
+-        bbox_ind = 0
+-
+-        # i = 0
+-        while len(output_tags) < self._max_pred_len:
+-            decoded_embedding = self._tag_transformer._embedding(decoded_tags)
+-            decoded_embedding = self._tag_transformer._positional_encoding(
+-                decoded_embedding
+-            )
+-            AggProfiler().begin("model_tag_transformer_decoder", self._prof)
+-            decoded, cache = self._tag_transformer._decoder(
+-                decoded_embedding,
+-                encoder_out,
+-                cache,
+-                memory_key_padding_mask=encoder_mask,
+-            )
+-            AggProfiler().end("model_tag_transformer_decoder", self._prof)
+-            # Grab last feature to produce token
+-            AggProfiler().begin("model_tag_transformer_fc", self._prof)
+-            logits = self._tag_transformer._fc(decoded[-1, :, :])  # 1, vocab_size
+-            AggProfiler().end("model_tag_transformer_fc", self._prof)
+-            new_tag = logits.argmax(1).item()
+-
+-            # STRUCTURE ERROR CORRECTION
+-            # Correction for first line xcel...
+-            if line_num == 0:
+-                if new_tag == word_map["xcel"]:
+-                    new_tag = word_map["lcel"]
+-
+-            # Correction for ucel, lcel sequence...
+-            if prev_tag_ucel:
+-                if new_tag == word_map["lcel"]:
+-                    new_tag = word_map["fcel"]
+-
+-            # End of generation
+-            if new_tag == word_map["<end>"]:
+-                output_tags.append(new_tag)
+-                decoded_tags = torch.cat(
+-                    [
+-                        decoded_tags,
+-                        torch.LongTensor([new_tag]).unsqueeze(1).to(self._device),
+-                    ],
+-                    dim=0,
+-                )  # current_output_len, 1
+-                break
+-            output_tags.append(new_tag)
+-
+-            # BBOX PREDICTION
+-
+-            # MAKE SURE TO SYNC NUMBER OF CELLS WITH NUMBER OF BBOXes
+-            if not skip_next_tag:
+-                if new_tag in [
+-                    word_map["fcel"],
+-                    word_map["ecel"],
+-                    word_map["ched"],
+-                    word_map["rhed"],
+-                    word_map["srow"],
+-                    word_map["nl"],
+-                    word_map["ucel"],
+-                ]:
+-                    # GENERATE BBOX HERE TOO (All other cases)...
+-                    tag_H_buf.append(decoded[-1, :, :])
+-                    if first_lcel is not True:
+-                        # Mark end index for horizontal cell bbox merge
+-                        bboxes_to_merge[cur_bbox_ind] = bbox_ind
+-                    bbox_ind += 1
+-
+-            # Treat horisontal span bboxes...
+-            if new_tag != word_map["lcel"]:
+-                first_lcel = True
+-            else:
+-                if first_lcel:
+-                    # GENERATE BBOX HERE (Beginning of horisontal span)...
+-                    tag_H_buf.append(decoded[-1, :, :])
+-                    first_lcel = False
+-                    # Mark start index for cell bbox merge
+-                    cur_bbox_ind = bbox_ind
+-                    bboxes_to_merge[cur_bbox_ind] = -1
+-                    bbox_ind += 1
+-
+-            if new_tag in [word_map["nl"], word_map["ucel"], word_map["xcel"]]:
+-                skip_next_tag = True
+-            else:
+-                skip_next_tag = False
+-
+-            # Register ucel in sequence...
+-            if new_tag == word_map["ucel"]:
+-                prev_tag_ucel = True
+-            else:
+-                prev_tag_ucel = False
++    def _table_output(self, seq, hidden, enc_out):
++        r"""
++        Bboxes of one decoded table.
+ 
+-            decoded_tags = torch.cat(
+-                [
+-                    decoded_tags,
+-                    torch.LongTensor([new_tag]).unsqueeze(1).to(self._device),
+-                ],
+-                dim=0,
+-            )  # current_output_len, 1
+-        seq = decoded_tags.squeeze().tolist()
++        Parameters
++        ----------
++        seq : list of int
++            <start>, the generated tags and <end> (if reached)
++        hidden : tensor (steps, 512)
++            Last decoder layer output of every step
++        enc_out : tensor (1, 28, 28, C)
++            CNN output of the table
++        """
++        word_map = self._init_data["word_map"]["word_map_tag"]
++        cell_steps, bboxes_to_merge = self._cell_steps(seq[1:], word_map)
+ 
+         if self._bbox:
+             AggProfiler().begin("model_bbox_decoder", self._prof)
+             outputs_class, outputs_coord = self._bbox_decoder.inference(
+-                enc_out, tag_H_buf
++                enc_out, hidden[cell_steps]
+             )
+             AggProfiler().end("model_bbox_decoder", self._prof)
+         else:
+-            outputs_class, outputs_coord = None, None
+-
+-        outputs_class.to(self._device)
+-        outputs_coord.to(self._device)
++            return seq, None, None
+ 
+         ########################################################################################
+         # Merge First and Last predicted BBOX for each span, according to bboxes_to_merge
+         ########################################################################################
+ 
++        if _dcc_on("DECODER"):
++            outputs_class1, outputs_coord1 = self._merge_span_bboxes(
++                outputs_class, outputs_coord, bboxes_to_merge
++            )
++            return seq, outputs_class1, outputs_coord1
++
+         outputs_class1 = []
+         outputs_coord1 = []
+         boxes_to_skip = []
+@@ -315,14 +266,97 @@
+         else:
+             outputs_class1 = torch.empty(0)
+ 
+-        outputs_class = outputs_class1
+-        outputs_coord = outputs_coord1
+-
+-        # Do the rest of the steps...
+-        AggProfiler().end("predict_total", self._prof)
+         num_tab_cells = seq.count(4) + seq.count(5)
+         num_rows = seq.count(9)
+         self._log().info(
+             "OTSL predicted table cells#: {}; rows#: {}".format(num_tab_cells, num_rows)
+         )
+-        return seq, outputs_class, outputs_coord
++        return seq, outputs_class1, outputs_coord1
++
++    def _merge_span_bboxes(self, outputs_class, outputs_coord, bboxes_to_merge):
++        r"""
++        The merge loop of _table_output with two gathers instead of per box tensor
++        ops: the same boxes in the same order, merged with the same float32
++        operations as mergebboxes.
++        """
++        n = len(outputs_coord)
++        keep, partner = [], []
++        skip = set()
++        for box_ind in range(n):
++            if box_ind in bboxes_to_merge:
++                j = bboxes_to_merge[box_ind]
++                skip.add(j)
++                keep.append(box_ind)
++                partner.append(j)
++            elif box_ind not in skip:
++                keep.append(box_ind)
++                partner.append(None)
++        if not keep:
++            return torch.empty(0), torch.empty(0)
++        dev = outputs_coord.device
++        idx = torch.tensor(keep, device=dev)
++        coord = outputs_coord[idx].to(self._device)
++        cls = outputs_class[idx].to(self._device)
++        merged_rows = [k for k, j in enumerate(partner) if j is not None]
++        if merged_rows:
++            rows = torch.tensor(merged_rows, device=coord.device)
++            b1 = coord[rows]
++            b2 = outputs_coord[
++                torch.tensor([partner[k] for k in merged_rows], device=dev)
++            ].to(coord.device)
++            new_w = (b2[:, 0] + b2[:, 2] / 2) - (b1[:, 0] - b1[:, 2] / 2)
++            new_h = (b2[:, 1] + b2[:, 3] / 2) - (b1[:, 1] - b1[:, 3] / 2)
++            new_left = b1[:, 0] - b1[:, 2] / 2
++            new_top = torch.minimum(b2[:, 1] - b2[:, 3] / 2, b1[:, 1] - b1[:, 3] / 2)
++            new_cx = new_left + new_w / 2
++            new_cy = new_top + new_h / 2
++            coord = coord.clone()
++            coord[rows] = torch.stack([new_cx, new_cy, new_w, new_h], dim=1)
++        return cls, coord
++
++    @staticmethod
++    def _cell_steps(tags, word_map):
++        r"""
++        The steps whose decoder output feeds the bbox decoder, and the first and last
++        bbox of every horizontal span, from the generated tags.
++
++        Returns
++        -------
++        cell_steps : list of int
++        bboxes_to_merge : dict
++            Index of the first bbox of a span -> index of its last bbox (-1: none)
++        """
++        cell_tags = {
++            word_map[t] for t in ["fcel", "ecel", "ched", "rhed", "srow", "nl", "ucel"]
++        }
++        skip_after = {word_map["nl"], word_map["ucel"], word_map["xcel"]}
++        lcel = word_map["lcel"]
++
++        cell_steps = []
++        bboxes_to_merge = {}
++        skip_next_tag = True
++        first_lcel = True
++        cur_bbox_ind = -1
++        bbox_ind = 0
++        for step, tag in enumerate(tags):
++            if tag == word_map["<end>"]:
++                break
++            # MAKE SURE TO SYNC NUMBER OF CELLS WITH NUMBER OF BBOXes
++            if not skip_next_tag and tag in cell_tags:
++                cell_steps.append(step)
++                if first_lcel is not True:
++                    # Mark end index for horizontal cell bbox merge
++                    bboxes_to_merge[cur_bbox_ind] = bbox_ind
++                bbox_ind += 1
++            # Treat horizontal span bboxes...
++            if tag != lcel:
++                first_lcel = True
++            elif first_lcel:
++                # Beginning of horizontal span
++                cell_steps.append(step)
++                first_lcel = False
++                cur_bbox_ind = bbox_ind
++                bboxes_to_merge[cur_bbox_ind] = -1
++                bbox_ind += 1
++            skip_next_tag = tag in skip_after
++        return cell_steps, bboxes_to_merge
+diff -ruN -x __pycache__ -x .git a/docling_ibm_models/tableformer/models/table04_rs/tag_decoder_rs.py b/docling_ibm_models/tableformer/models/table04_rs/tag_decoder_rs.py
+--- a/docling_ibm_models/tableformer/models/table04_rs/tag_decoder_rs.py
++++ b/docling_ibm_models/tableformer/models/table04_rs/tag_decoder_rs.py
+@@ -0,0 +1,331 @@
++import contextlib
++import threading
++from typing import Optional
++
++import torch
++import torch.nn.functional as F
++from torch import Tensor
++
++from docling_ibm_models.tableformer.dcc_flags import on as _dcc_on
++
++
++def _attend_one(q: Tensor, k: Tensor, v: Tensor, mask: Optional[Tensor] = None):
++    r"""
++    Attention of a single query row: q (B, H, 1, hd), k and v (B, H, S, hd).
++
++    Two batched matrix products instead of scaled_dot_product_attention, whose fused
++    kernels are tuned for long queries and are several times slower for one row.
++    """
++    scores = torch.matmul(q, k.transpose(-1, -2)) * (q.size(-1) ** -0.5)
++    if mask is not None:
++        scores = scores.masked_fill(~mask, float("-inf"))
++    return torch.matmul(torch.softmax(scores, dim=-1), v)
++
++
++class TagDecoder:
++    r"""
++    Greedy OTSL decoding of the tag transformer of TableModel04_rs for a batch of
++    tables, with the same structure corrections as the original token loop.
++
++    Each step projects the keys and values of the new token only (KV cache) and
++    attends over a cache of fixed length with a mask, and the image memory's keys
++    and values are projected once per table. All steps therefore have the same
++    shapes: on CUDA one step is captured as a CUDA graph and replayed, so a token
++    costs one launch instead of ~150 small kernels. The tag corrections and the end
++    check run on the device, and the host only checks every few steps whether all
++    tables have ended, without waiting for each token.
++
++    Not thread safe: TableModel04_rs serialises the calls.
++    """
++
++    def __init__(self, model, batch_size: int, max_steps: int, use_cuda_graph: bool):
++        tt = model._tag_transformer
++        self._tt = tt
++        self._layers = list(tt._decoder.layers)
++        word_map = model._init_data["word_map"]["word_map_tag"]
++        self._start = word_map["<start>"]
++        self._end = word_map["<end>"]
++        self._xcel = word_map["xcel"]
++        self._lcel = word_map["lcel"]
++        self._fcel = word_map["fcel"]
++        self._ucel = word_map["ucel"]
++
++        device = next(tt.parameters()).device
++        self._device = device
++        self._B = batch_size
++        self._T = max_steps
++        self._E = tt._decoder_dim
++        self._H = tt._n_heads
++        self._hd = self._E // self._H
++        self._P = tt._enc_image_size**2
++        B, T, E, H, hd, P = self._B, self._T, self._E, self._H, self._hd, self._P
++        n_layers = len(self._layers)
++
++        def zeros(*shape, dtype=torch.float32):
++            return torch.zeros(*shape, dtype=dtype, device=device)
++
++        # Static buffers: the captured graph reads and writes only these
++        self._mem_k = [zeros(B, H, P, hd) for _ in range(n_layers)]
++        self._mem_v = [zeros(B, H, P, hd) for _ in range(n_layers)]
++        self._k_cache = [zeros(B, H, T, hd) for _ in range(n_layers)]
++        self._v_cache = [zeros(B, H, T, hd) for _ in range(n_layers)]
++        self._x = zeros(1, B, E)  # embedded current tag
++        self._t = zeros(1, dtype=torch.long)  # current step
++        self._positions = torch.arange(T, device=device)
++        self._hidden = zeros(T, B, E)  # last decoder layer output per step
++        self._tags = zeros(T + 1, B, dtype=torch.long)
++        self._finished = zeros(B, dtype=torch.bool)
++        self._prev_ucel = zeros(B, dtype=torch.bool)
++        self._lengths = zeros(B, dtype=torch.long)
++        self._all_finished = zeros(1, dtype=torch.bool)
++        self._pe = tt._positional_encoding.pe  # (max_len, 1, E)
++
++        # Self-attention only reads the first L cache slots while the step is below
++        # L: one step function (and CUDA graph) per cache length bucket, so short
++        # tables do not pay for attention over the whole max_steps cache
++        # (DCC_TABLES_DECODER; off: one bucket of max_steps, the original decoder)
++        self._fast = _dcc_on("DECODER")
++        if self._fast:
++            self._buckets = sorted({min(b, T) for b in (64, 128, 256, 512)} | {T})
++        else:
++            self._buckets = [T]
++        self._chunk = 8  # steps per graph replay with DCC_TABLES_DECODER
++        self._graphs = None
++        if use_cuda_graph and device.type == "cuda":
++            self._capture()
++
++    def _device_context(self):
++        if self._device.type == "cuda":
++            return torch.cuda.device(self._device)
++        return contextlib.nullcontext()
++
++    def _project(self, mha, x: Tensor, part: slice):
++        return F.linear(x, mha.in_proj_weight[part], mha.in_proj_bias[part])
++
++    def _heads(self, x: Tensor):
++        # (S, B, E) -> (B, H, S, hd)
++        return x.view(x.size(0), self._B, self._H, self._hd).permute(1, 2, 0, 3)
++
++    def _out(self, mha, a: Tensor):
++        # (B, H, 1, hd) -> (1, B, E)
++        a = a.permute(2, 0, 1, 3).reshape(self._B, self._E)
++        return F.linear(a, mha.out_proj.weight, mha.out_proj.bias).view(
++            1, self._B, self._E
++        )
++
++    def _step(self, L: int):
++        r"""
++        One decoding step on the static buffers (same layers as TMTransformerDecoder),
++        valid while the step index is below the cache length L.
++        """
++        E, t = self._E, self._t
++        q_part, kv_part = slice(0, E), slice(E, 3 * E)
++        mask = (self._positions[:L] <= t).view(1, 1, 1, L)
++        h = self._x
++        for i, layer in enumerate(self._layers):
++            sa = layer.self_attn
++            q = self._heads(self._project(sa, h, q_part))
++            kv = self._project(sa, h, kv_part).view(1, self._B, 2, self._H, self._hd)
++            self._k_cache[i].index_copy_(2, t, kv[:, :, 0].permute(1, 2, 0, 3))
++            self._v_cache[i].index_copy_(2, t, kv[:, :, 1].permute(1, 2, 0, 3))
++            a = _attend_one(
++                q, self._k_cache[i][:, :, :L], self._v_cache[i][:, :, :L], mask
++            )
++            h = layer.norm1(h + self._out(sa, a))
++
++            ca = layer.multihead_attn
++            q = self._heads(self._project(ca, h, q_part))
++            a = _attend_one(q, self._mem_k[i], self._mem_v[i])
++            h = layer.norm2(h + self._out(ca, a))
++            h = layer.norm3(h + layer.linear2(layer.activation(layer.linear1(h))))
++        self._hidden.index_copy_(0, t, h)
++
++        new_tag = self._tt._fc(h[0]).argmax(1)
++        # Structure corrections of the original loop: xcel -> lcel (on every line,
++        # since its line counter never advances) and lcel after ucel -> fcel
++        new_tag = torch.where(new_tag == self._xcel, self._lcel, new_tag)
++        new_tag = torch.where(
++            self._prev_ucel & (new_tag == self._lcel), self._fcel, new_tag
++        )
++        new_tag = torch.where(self._finished, self._end, new_tag)
++        ended = new_tag == self._end
++        self._lengths.copy_(torch.where(~self._finished & ended, t + 1, self._lengths))
++        self._finished.copy_(self._finished | ended)
++        self._prev_ucel.copy_(new_tag == self._ucel)
++        self._tags.index_copy_(0, t + 1, new_tag.view(1, self._B))
++        next_pos = torch.clamp(t + 1, max=self._pe.size(0) - 1)
++        self._x.copy_(
++            self._tt._embedding(new_tag).view(1, self._B, E)
++            + self._pe.index_select(0, next_pos)
++        )
++        self._all_finished.copy_(self._finished.all().view(1))
++        self._t.add_(1)
++
++    @torch.no_grad()
++    def _capture(self):
++        graphs = []
++        with self._device_context():
++            for L in self._buckets:
++                stream = torch.cuda.Stream()
++                stream.wait_stream(torch.cuda.current_stream())
++                with torch.cuda.stream(stream):
++                    self._t.zero_()
++                    for _ in range(3):  # warm-up, as required before capture
++                        self._step(L)
++                torch.cuda.current_stream().wait_stream(stream)
++                self._t.zero_()
++                graph = torch.cuda.CUDAGraph()
++                # thread_local: other docling stages may use the GPU from other threads
++                with torch.cuda.graph(graph, capture_error_mode="thread_local"):
++                    # DCC_TABLES_DECODER: _chunk steps per graph (one launch per
++                    # check of the end flag instead of one per token)
++                    for _ in range(self._chunk if self._fast else 1):
++                        self._step(L)
++                graphs.append(graph)
++        self._graphs = graphs
++
++    @torch.no_grad()
++    def decode(self, memory: Tensor, max_steps: int, check_every: int = 8):
++        r"""
++        Parameters
++        ----------
++        memory : Tensor (P, n, E)
++            Output of the tag transformer encoder for n <= batch_size tables
++        max_steps : int
++            Maximum number of tags generated per table (at most the buffer length)
++
++        Returns
++        -------
++        tags : list of list of int
++            Per table: <start>, the generated tags and <end> (if it was reached)
++        hidden : Tensor (steps, n, E)
++            Last decoder layer output of every step, the input of the bbox decoder
++        """
++        with self._device_context():
++            return self._decode(memory, max_steps, check_every)
++
++    def _decode(self, memory: Tensor, max_steps: int, check_every: int):
++        n = memory.size(1)
++        max_steps = min(max_steps, self._T)
++        if n < self._B:  # fill the batch; the extra rows start as finished
++            memory = torch.cat([memory, memory[:, :1].expand(-1, self._B - n, -1)], 1)
++        E = self._E
++        for i, layer in enumerate(self._layers):
++            ca = layer.multihead_attn
++            self._mem_k[i].copy_(
++                self._heads(self._project(ca, memory, slice(E, 2 * E)))
++            )
++            self._mem_v[i].copy_(
++                self._heads(self._project(ca, memory, slice(2 * E, 3 * E)))
++            )
++        self._t.zero_()
++        self._tags.fill_(self._end)
++        self._tags[0] = self._start
++        self._finished.zero_()
++        self._finished[n:] = True
++        self._prev_ucel.zero_()
++        self._lengths.fill_(max_steps)
++        self._all_finished.zero_()
++        self._x.copy_(
++            self._tt._embedding(self._tags[0]).view(1, self._B, self._E) + self._pe[0]
++        )
++
++        on_cuda = self._device.type == "cuda"
++        flag = torch.zeros(1, dtype=torch.bool)
++        if on_cuda:
++            flag = flag.pin_memory()
++        event = None
++        steps = max_steps
++        K = self._chunk
++        if (
++            self._fast
++            and self._graphs is not None
++            and check_every == K
++            and max_steps % K == 0
++            and all(b % K == 0 for b in self._buckets)
++        ):
++            # K steps per replay; the same end checks as the loop below (every K
++            # steps, reading the flag copied at the previous check)
++            bucket = 0
++            for t0 in range(0, max_steps, K):
++                while t0 >= self._buckets[bucket]:
++                    bucket += 1
++                self._graphs[bucket].replay()
++                if event is not None:
++                    event.synchronize()
++                    if bool(flag):
++                        steps = t0 + K
++                        break
++                flag.copy_(self._all_finished, non_blocking=True)
++                event = torch.cuda.Event(blocking=True)
++                event.record()
++            done = torch.cuda.Event(blocking=True)
++            done.record()
++            done.synchronize()
++            steps = min(steps, max_steps)
++            tags = self._tags[: steps + 1, :n].T.tolist()
++            lengths = self._lengths[:n].tolist()
++            seqs = [row[: 1 + min(length, steps)] for row, length in zip(tags, lengths)]
++            return seqs, self._hidden[:steps, :n]
++
++        bucket = 0
++        for t in range(max_steps):
++            while t >= self._buckets[bucket]:
++                bucket += 1
++            if self._graphs is not None:
++                self._graphs[bucket].replay()
++            else:
++                self._step(self._buckets[bucket])
++            if not on_cuda:
++                if bool(self._all_finished):
++                    steps = t + 1
++                    break
++                continue
++            if (t + 1) % check_every == 0:
++                # Read the flag copied at the previous check: the host stays at most
++                # check_every steps ahead of the device and never waits per token
++                if event is not None:
++                    event.synchronize()
++                    if bool(flag):
++                        steps = t + 1
++                        break
++                flag.copy_(self._all_finished, non_blocking=True)
++                # blocking: the thread sleeps instead of spinning on a CPU core
++                event = torch.cuda.Event(blocking=self._fast)
++                event.record()
++
++        if on_cuda and self._fast:
++            done = torch.cuda.Event(blocking=True)
++            done.record()
++            done.synchronize()
++        steps = min(steps, max_steps)
++        tags = self._tags[: steps + 1, :n].T.tolist()
++        lengths = self._lengths[:n].tolist()
++        seqs = [row[: 1 + min(length, steps)] for row, length in zip(tags, lengths)]
++        return seqs, self._hidden[:steps, :n]
++
++
++class TagDecoders:
++    r"""
++    One TagDecoder per batch size (powers of two up to max_batch_size), built on
++    first use. A failed CUDA graph capture falls back to running the steps eagerly.
++    """
++
++    def __init__(self, model, max_steps: int, max_batch_size: int = 4):
++        self._model = model
++        self._max_steps = max_steps
++        self.max_batch_size = max_batch_size
++        self._decoders: dict[int, TagDecoder] = {}
++        self.lock = threading.Lock()
++
++    def get(self, n: int) -> TagDecoder:
++        size = 1
++        while size < n:
++            size *= 2
++        if size not in self._decoders:
++            try:
++                decoder = TagDecoder(self._model, size, self._max_steps, True)
++            except RuntimeError:
++                decoder = TagDecoder(self._model, size, self._max_steps, False)
++            self._decoders[size] = decoder
++        return self._decoders[size]
