@@ -16,4 +16,4 @@ services:
       dockerfile: dcc-docling-serve/plugins/Dockerfile.debug
       args:
         DOCLING_SERVE_IMAGE: ghcr.io/docling-project/docling-serve
-        DOCLING_SERVE_TAG: latest
+        DOCLING_SERVE_TAG: v1.38.2

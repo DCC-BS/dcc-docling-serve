@@ -1,7 +1,7 @@
 # Dockerfile.debug — build docling-serve with plugins installed from local source.
 #
 # Same image as Dockerfile.docling-serve (GPU OCR, log muting, word boxes), except:
-#   - docling-glm-ocr, docling-pp-doc-layout and docling-pp-ocrv6 are installed
+#   - docling-glm-ocr, docling-pp-doc-layout, docling-pp-ocrv6 and docling-tableformer-batched are installed
 #     from the sibling repositories instead of PyPI.
 #   - The build context MUST be the repo root (parent of dcc-docling-serve/) so
 #     COPY can reach those sibling directories.
@@ -11,7 +11,8 @@
 #   docker compose -f compose.yaml -f compose.debug.yaml build --no-cache
 
 ARG DOCLING_SERVE_IMAGE=ghcr.io/docling-project/docling-serve
-ARG DOCLING_SERVE_TAG=latest
+# The release CI builds on (DOCLING_SERVE_VERSION in .github/workflows/ci.yml)
+ARG DOCLING_SERVE_TAG=v1.38.2
 FROM ${DOCLING_SERVE_IMAGE}:${DOCLING_SERVE_TAG}
 
 # GPU images: run RapidOCR's onnxruntime on the GPU instead of the CPU (no-op on CPU images)
@@ -29,10 +30,12 @@ RUN pip install --no-cache-dir "huggingface-hub>=1.3.0"
 COPY docling-glm-ocr /src/docling-glm-ocr
 COPY docling-pp-doc-layout /src/docling-pp-doc-layout
 COPY docling-pp-ocrv6 /src/docling-pp-ocrv6
+COPY docling-tableformer-batched /src/docling-tableformer-batched
 RUN pip install --no-cache-dir --no-deps \
     /src/docling-glm-ocr \
     /src/docling-pp-doc-layout \
-    /src/docling-pp-ocrv6
+    /src/docling-pp-ocrv6 \
+    /src/docling-tableformer-batched
 
 # Bake the PP-DocLayout-V3 weights into the image: the plugin loads them from disk instead of
 # fetching them from huggingface.co at every pipeline start (PP_DOC_LAYOUT_MODEL_NAME still overrides)
@@ -80,3 +83,20 @@ COPY dcc-docling-serve/plugins/list_bullets.py /tmp/list_bullets.py
 RUN SP="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
     && cp /tmp/list_bullets.py "$SP/dcc_list_bullets.py" \
     && printf 'import dcc_list_bullets\n' > "$SP/zz_dcc_list_bullets.pth"
+
+# Fewer stop-the-world garbage collections in the threaded PDF pipeline
+# (DCC_PIPELINE_GC=0 leaves the garbage collector as Python has it)
+COPY dcc-docling-serve/plugins/pipeline_gc.py /tmp/pipeline_gc.py
+RUN SP="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
+    && cp /tmp/pipeline_gc.py "$SP/dcc_pipeline_gc.py" \
+    && printf 'import dcc_pipeline_gc\n' > "$SP/zz_dcc_pipeline_gc.pth"
+
+# TableFormer v1 from DCC's docling-ibm-models build: 4.0.4 plus the KV-cache decoder of
+# docling-project/docling-ibm-models#210 and DCC's table speed-ups, same tables (DCC_TABLES_<NAME>=0
+# turns one off). Until upstream releases #210. Installed over the image's 4.0.4 only: a newer
+# docling-ibm-models would be downgraded, so the build stops instead.
+ARG DOCLING_IBM_MODELS_WHEEL=https://github.com/DCC-BS/docling-ibm-models/releases/download/v4.0.4%2Bdcc.1/docling_ibm_models-4.0.4+dcc.1-py3-none-any.whl
+ARG DOCLING_IBM_MODELS_SHA256=6ba0c9367ba4bb63a9fd5e9b2b340a047450ce58032f48c8d1aba461027cf659
+RUN python -c "from importlib.metadata import version; v = version('docling-ibm-models'); \
+assert v == '4.0.4', f'docling-ibm-models {v} in the base image: build a matching DCC docling-ibm-models'" \
+    && pip install --no-cache-dir --no-deps "${DOCLING_IBM_MODELS_WHEEL}#sha256=${DOCLING_IBM_MODELS_SHA256}"
