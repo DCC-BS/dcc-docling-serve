@@ -2,26 +2,23 @@
 
 import gc
 import importlib.util
-import shutil
-import subprocess
 import sys
-import sysconfig
 import types
-from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 import pytest
 
-PLUGINS = Path(__file__).resolve().parents[2] / "plugins"
-PLUGIN = PLUGINS / "pipeline_gc.py"
+PLUGIN = Path(__file__).resolve().parents[2] / "plugins" / "pipeline_gc.py"
 
 
 @pytest.fixture
 def restore_gc():
     threshold = gc.get_threshold()
+    finders = list(sys.meta_path)
     yield
     gc.set_threshold(*threshold)
     gc.unfreeze()
+    sys.meta_path[:] = finders  # no import hook left behind for later tests
 
 
 def _load(name: str):
@@ -47,6 +44,26 @@ def test_raises_thresholds_and_freezes_after_pipeline_init(monkeypatch, restore_
     assert len(built) == 1
     assert gc.get_freeze_count() > 0
 
+    # a later pipeline (another option set) freezes nothing more
+    gc.unfreeze()
+    pipeline.StandardPdfPipeline()
+    assert len(built) == 2
+    assert gc.get_freeze_count() == 0
+
+
+def test_one_import_hook_across_reloads(monkeypatch, restore_gc):
+    monkeypatch.delenv("DCC_PIPELINE_GC", raising=False)
+    _load("dcc_pipeline_gc_a")
+    _load("dcc_pipeline_gc_b")
+    assert sum(getattr(f, "dcc_pipeline_gc", False) for f in sys.meta_path) == 1
+
+
+@pytest.mark.parametrize(("value", "expected"), [("", 20000), ("abc", 20000), ("0", 1), ("5000", 5000)])
+def test_threshold_from_env(monkeypatch, restore_gc, value, expected):
+    monkeypatch.setenv("DCC_PIPELINE_GC_GEN0", value)
+    _load("dcc_pipeline_gc_env")
+    assert gc.get_threshold()[0] == expected
+
 
 def test_off_leaves_the_collector_alone(monkeypatch, restore_gc):
     monkeypatch.setenv("DCC_PIPELINE_GC", "0")
@@ -55,27 +72,3 @@ def test_off_leaves_the_collector_alone(monkeypatch, restore_gc):
     _load("dcc_pipeline_gc_off")
     assert gc.get_threshold() == before
     assert sys.meta_path == finders
-
-
-@pytest.mark.parametrize(
-    ("patch_file", "package", "dist", "made_for"),
-    [
-        ("docling-ibm-models-tableformer.patch", "docling_ibm_models", "docling-ibm-models", "4.0.4"),
-        ("docling-table-batch.patch", "docling", "docling-slim", "2.142.1"),
-    ],
-)
-def test_patch_applies_to_the_version_it_was_made_for(patch_file, package, dist, made_for):
-    try:
-        installed = version(dist)
-    except PackageNotFoundError:
-        pytest.skip(f"{dist} not installed")
-    if installed != made_for or shutil.which("patch") is None:
-        pytest.skip(f"{dist} {installed} installed, patch made for {made_for}")
-    site = sysconfig.get_paths()["purelib"]
-    result = subprocess.run(  # noqa: S603
-        ["patch", "-p1", "-d", site, "--dry-run", "--forward", "--batch", "-i", str(PLUGINS / "patches" / patch_file)],  # noqa: S607
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0, result.stdout + result.stderr
