@@ -26,6 +26,7 @@
     "glm-egret-large",
     "vlm-nemotron-parse",
     "vlm-lighton-ocr-3",
+    "lighton-ocr-3-vllm",
     "vlm-unlimited-ocr-2",
     "unlimited-ocr-2-sglang",
     "pp-ocrv6",
@@ -182,6 +183,12 @@
       "engine": "LightOnOCR-3-4B",
       "id": "vlm-lighton-ocr-3",
       "label": "LightOnOCR-3-4B (full page, VLM pipeline)",
+      "layout": "VLM (full page)"
+    },
+    {
+      "engine": "LightOnOCR-3-4B",
+      "id": "lighton-ocr-3-vllm",
+      "label": "LightOnOCR-3-4B (all pages at once, LightOn client without docling)",
       "layout": "VLM (full page)"
     },
     {

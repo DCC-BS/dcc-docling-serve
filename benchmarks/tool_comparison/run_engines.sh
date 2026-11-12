@@ -34,6 +34,7 @@ NEMOTRON_PARSE_REVISION=e7ea79242a87ea0ad3919b672bfedb429a683206
 NEMOTRON_PARSE_DIR=/root/.cache/huggingface/nemotron-3.5-parse
 LIGHTON_REVISION=b71010f095dc3735de7ee6b9969bff8f8f50b39a
 # Unlimited-OCR-2: vLLM does not run v2 yet (vllm-project/vllm#64016); Baidu's SGLang build ships in the model repo
+LIGHTON_PORT="${LIGHTON_PORT:-18011}"  # on localhost, for run_lighton_ocr.py
 UNLIMITED_OCR_2_REVISION=0480966938291445591f69f08a13b041c073a96a
 UNLIMITED_OCR_2_DIR=/root/.cache/huggingface/unlimited-ocr-2
 UNLIMITED_OCR_2_PORT="${UNLIMITED_OCR_2_PORT:-18010}"  # on localhost, for run_unlimited_ocr.py
@@ -124,7 +125,7 @@ gpu_processes() {  # compute processes on GPU index $1
     nvidia-smi --query-compute-apps=gpu_uuid,pid,process_name,used_memory --format=csv,noheader | grep "^$uuid" || true
 }
 GPUS=("$DOCLING_GPU")
-any_wanted release-glm release-glm-pp glm-egret-large vlm-nemotron-parse vlm-lighton-ocr-3 \
+any_wanted release-glm release-glm-pp glm-egret-large vlm-nemotron-parse vlm-lighton-ocr-3 lighton-ocr-3-vllm \
     vlm-unlimited-ocr-2 unlimited-ocr-2-sglang && GPUS+=("$VLLM_GPU")
 for gpu in $(printf '%s\n' "${GPUS[@]}" | sort -u); do
     busy=$(gpu_processes "$gpu")
@@ -206,6 +207,19 @@ if wanted vlm-lighton-ocr-3; then
          --default-chat-template-kwargs '{\"enable_thinking\":false}' --gpu-memory-utilization $VLLM_MEMORY"
     # About 20x slower than the other configurations: one conversion per document
     run_config vlm-lighton-ocr-3 --option pipeline=vlm --option vlm_pipeline_preset=lighton-ocr-3 --repeats 1
+fi
+# Without docling, with LightOn's own client and the server flags from its README
+if wanted lighton-ocr-3-vllm; then
+    start_vllm lighton-ocr-3-direct vllm/vllm-openai:v0.31.0 \
+        "exec vllm serve lightonai/LightOnOCR-3-4B --revision $LIGHTON_REVISION \
+         --served-model-name lightonai/LightOnOCR-3-4B --port 8000 --trust-remote-code \
+         --max-model-len 18000 --limit-mm-per-prompt '{\"image\":1}' --mm-processor-cache-gb 0 --no-enable-prefix-caching \
+         --default-chat-template-kwargs '{\"enable_thinking\":false}' --gpu-memory-utilization $VLLM_MEMORY" \
+        -p "127.0.0.1:$LIGHTON_PORT:8000"
+    # Through the published port: rootless docker does not route the host to container addresses
+    log "=== lighton-ocr-3-vllm"
+    uv run --script run_lighton_ocr.py --tool lighton-ocr-3-vllm --url "http://127.0.0.1:$LIGHTON_PORT/v1" \
+        --results "$RESULTS" --docs "${DOCS[@]}" "${EXTRA_ARGS[@]}"
 fi
 # The same server read through docling's VLM pipeline (one request per page) and directly (one per document)
 if any_wanted vlm-unlimited-ocr-2 unlimited-ocr-2-sglang; then

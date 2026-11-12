@@ -563,6 +563,8 @@ The config also lists candidates that are not in the image yet:
   with the presets in `benchmarks/tool_comparison/vlm_presets.json`
 - Unlimited-OCR-2 without docling, the whole document in one request to its SGLang server
   (`run_unlimited_ocr.py`, row `unlimited-ocr-2-sglang`)
+- LightOnOCR-3-4B without docling, with LightOn's own client: every page at once, one image
+  per request, grounding mode without headers and footers (`run_lighton_ocr.py`, row `lighton-ocr-3-vllm`)
 
 #### Candidates tested in October 2026
 
