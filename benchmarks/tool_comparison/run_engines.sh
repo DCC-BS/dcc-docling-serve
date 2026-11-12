@@ -34,6 +34,9 @@ NEMOTRON_PARSE_REVISION=e7ea79242a87ea0ad3919b672bfedb429a683206
 NEMOTRON_PARSE_DIR=/root/.cache/huggingface/nemotron-3.5-parse
 LIGHTON_REVISION=b71010f095dc3735de7ee6b9969bff8f8f50b39a
 # Unlimited-OCR-2: vLLM does not run v2 yet (vllm-project/vllm#64016); Baidu's SGLang build ships in the model repo
+# The versions LightOn tests (its pyproject's vllm extra); the vLLM images ship transformers 5.17
+LIGHTON_IMAGE=vllm/vllm-openai:v0.30.0
+LIGHTON_SETUP="pip install -q transformers==5.16.1"
 LIGHTON_PORT="${LIGHTON_PORT:-18011}"  # on localhost, for run_lighton_ocr.py
 UNLIMITED_OCR_2_REVISION=0480966938291445591f69f08a13b041c073a96a
 UNLIMITED_OCR_2_DIR=/root/.cache/huggingface/unlimited-ocr-2
@@ -200,8 +203,8 @@ if wanted vlm-nemotron-parse; then
     run_config vlm-nemotron-parse --option pipeline=vlm --option vlm_pipeline_preset=nemotron-parse-3.5
 fi
 if wanted vlm-lighton-ocr-3; then
-    start_vllm lighton-ocr-3 vllm/vllm-openai:v0.31.0 \
-        "exec vllm serve lightonai/LightOnOCR-3-4B --revision $LIGHTON_REVISION \
+    start_vllm lighton-ocr-3 $LIGHTON_IMAGE \
+        "$LIGHTON_SETUP && exec vllm serve lightonai/LightOnOCR-3-4B --revision $LIGHTON_REVISION \
          --served-model-name lightonai/LightOnOCR-3-4B --port 8000 --trust-remote-code \
          --max-model-len 16384 --limit-mm-per-prompt '{\"image\":1}' \
          --default-chat-template-kwargs '{\"enable_thinking\":false}' --gpu-memory-utilization $VLLM_MEMORY"
@@ -210,8 +213,8 @@ if wanted vlm-lighton-ocr-3; then
 fi
 # Without docling, with LightOn's own client and the server flags from its README
 if wanted lighton-ocr-3-vllm; then
-    start_vllm lighton-ocr-3-direct vllm/vllm-openai:v0.31.0 \
-        "exec vllm serve lightonai/LightOnOCR-3-4B --revision $LIGHTON_REVISION \
+    start_vllm lighton-ocr-3-direct $LIGHTON_IMAGE \
+        "$LIGHTON_SETUP && exec vllm serve lightonai/LightOnOCR-3-4B --revision $LIGHTON_REVISION \
          --served-model-name lightonai/LightOnOCR-3-4B --port 8000 --trust-remote-code \
          --max-model-len 18000 --limit-mm-per-prompt '{\"image\":1}' --mm-processor-cache-gb 0 --no-enable-prefix-caching \
          --default-chat-template-kwargs '{\"enable_thinking\":false}' --gpu-memory-utilization $VLLM_MEMORY" \
