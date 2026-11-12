@@ -189,7 +189,7 @@
       "engine": "LightOnOCR-3-4B",
       "id": "lighton-ocr-3-vllm",
       "label": "LightOnOCR-3-4B (all pages at once, LightOn client without docling)",
-      "layout": "VLM (full page)"
+      "layout": "VLM (full page, LightOn client)"
     },
     {
       "engine": "Unlimited-OCR-2",

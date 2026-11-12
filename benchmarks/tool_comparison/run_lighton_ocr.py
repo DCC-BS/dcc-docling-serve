@@ -7,7 +7,8 @@
 Uses LightOn's client as its CLI does: every page of a document rendered at the model's page size
 (2048 px longest edge), all pages sent at once (one image per request, vLLM batches them), the
 CLI's sampling (temperature 0.2, no token cap). In grounding mode the layout blocks are joined back
-into markdown without headers, footers and page numbers, as docling leaves them out too.
+into markdown without headers, footers and page numbers, as docling leaves them out too;
+footnotes stay, as in docling.
 run_engines.sh starts the server and runs this script.
 
     uv run --script run_lighton_ocr.py --url http://127.0.0.1:18011/v1 --tool lighton-ocr-3-vllm
@@ -18,6 +19,10 @@ import time
 
 from common import Recorder, list_docs, log, parser
 from lightonocr import DEFAULT_CONCURRENCY, HEADER_FOOTER, LightOnOCR, load_pages, ocr_pages, parse_blocks, to_markdown
+
+# LightOn's HEADER_FOOTER also drops footnotes (olmOCR-bench counts them as footer content).
+# Docling keeps footnotes in its markdown, and the PDF text layers we score against have them.
+DROP = tuple(label for label in HEADER_FOOTER if "footnote" not in label)
 
 
 def main() -> None:
@@ -42,7 +47,7 @@ def main() -> None:
         results = list(ocr_pages(ocr, pages_dir / doc.name, numbers, images, args.mode, concurrency=args.concurrency))
         seconds = time.perf_counter() - t_start
         if args.mode == "grounding":
-            pages = [to_markdown(parse_blocks(r["raw"]), drop=HEADER_FOOTER) for r in results]
+            pages = [to_markdown(parse_blocks(r["raw"]), drop=DROP) for r in results]
         else:
             pages = [r["raw"] for r in results]
         empty = [r["page"] for r in results if not r["raw"].strip()]
