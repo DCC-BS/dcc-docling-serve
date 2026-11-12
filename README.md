@@ -610,7 +610,8 @@ None of the candidates replaces what the image has. Their weaknesses:
 - **LightOnOCR-3-4B.** The best reader of handwriting and photos, but 10× slower than GLM-OCR
   (up to 6 minutes for one pass over a long PDF), no table structure at all, and low precision
   (0.68 on XFUND) because it adds and repeats text. The November run below shows that the
-  missing tables and much of the low precision come from docling, not from the model.
+  missing tables come from docling, not from the model. Its low precision has more than one
+  cause, see there.
 - **Not tested:** Chandra-OCR-2 and Indra-OCR (Datalab). Their weights use a modified
   OpenRAIL-M licence that is free only for small companies.
 
@@ -649,8 +650,13 @@ LightOnOCR-3-4B on the same 96 documents, both rows on vLLM 0.30.0 with transfor
 the versions LightOn tests with, one timed pass each on an RTX 4090. The first row goes through
 docling's VLM pipeline and replaces the October run. The second uses LightOn's own client
 (`run_lighton_ocr.py`) the way its CLI does: every page rendered at 2048 px, all pages of a
-document sent at once, grounding mode, headers, footers and page numbers left out. Both times
-include rendering the pages.
+document sent at once, grounding mode, headers, footers and page numbers left out (footnotes
+kept, as docling keeps them). Both times include rendering the pages.
+
+The two rows differ in more than docling. The docling preset uses the model's plain
+transcription mode (empty prompt), which also transcribes headers and footers, and caps the
+answer at 4'096 tokens. The client uses grounding mode, drops headers and footers by their
+block labels and sets no token cap.
 
 | Configuration | Time | Synthetic F1 | Tables | Headings | XFUND recall / precision | Text-layer recall / precision | Handwritten note |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -659,9 +665,10 @@ include rendering the pages.
 
 - **In docling** the model looks much worse than it is. LightOnOCR-3 writes tables as HTML,
   docling's VLM pipeline reads the answer as markdown and escapes the HTML into text
-  (`&lt;table&gt;…`). Every table is lost, and that pulls body F1 down to 0.69. Docling also
-  caps the answer at 4'096 tokens, so a few dense pages end early (`partial_success`), and it
-  sends 8 pages at a time.
+  (`&lt;table&gt;…`). Every table is lost, which is docling's doing. The lower body F1 (0.69)
+  and XFUND precision (0.68) come partly from the escaped tables and partly from the headers
+  and footers the plain mode writes; this run doesn't separate the two. With the 4'096-token
+  cap a few dense pages end early (`partial_success`), and docling sends 8 pages at a time.
 - **Without docling** the model reads well: F1 0.94 and tables 0.99 on the made-up documents,
   XFUND precision 0.98, and it is twice as fast as in docling. It is still 5× slower than
   GLM-OCR + PP-DocLayout-V3 (482 s) and 7× slower than PP-OCRv6 + PP-DocLayout-V3 (328 s).
