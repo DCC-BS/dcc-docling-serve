@@ -609,7 +609,8 @@ None of the candidates replaces what the image has. Their weaknesses:
   drawings it runs out of output tokens and returns an empty page (`partial_success`).
 - **LightOnOCR-3-4B.** The best reader of handwriting and photos, but 10× slower than GLM-OCR
   (up to 6 minutes for one pass over a long PDF), no table structure at all, and low precision
-  (0.68 on XFUND) because it adds and repeats text.
+  (0.68 on XFUND) because it adds and repeats text. The November run below shows that the
+  missing tables and much of the low precision come from docling, not from the model.
 - **Not tested:** Chandra-OCR-2 and Indra-OCR (Datalab). Their weights use a modified
   OpenRAIL-M licence that is free only for small companies.
 
@@ -641,6 +642,52 @@ It doesn't replace anything either:
   --allow-auto-truncate`; without them requests with several pages hang. `run_engines.sh`
   sets them. On single handwritten lines (the `ai-model-evaluation` OCR suite) the model
   returns nothing or loops on some lines, with Baidu's transformers reference code as well.
+
+#### LightOnOCR-3-4B without docling, November 2026
+
+LightOnOCR-3-4B on the same 96 documents, both rows on vLLM 0.30.0 with transformers 5.16.1,
+the versions LightOn tests with, one timed pass each on an RTX 4090. The first row goes through
+docling's VLM pipeline and replaces the October run. The second uses LightOn's own client
+(`run_lighton_ocr.py`) the way its CLI does: every page rendered at 2048 px, all pages of a
+document sent at once, grounding mode, headers, footers and page numbers left out. Both times
+include rendering the pages.
+
+| Configuration | Time | Synthetic F1 | Tables | Headings | XFUND recall / precision | Text-layer recall / precision | Handwritten note |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| LightOnOCR-3-4B in docling (whole page) | 4'933 s | 0.69 | 0.00 | 0.98 | 0.98 / 0.68 | 0.85 / 0.76 | 100 % |
+| LightOnOCR-3-4B without docling (LightOn client) | 2'457 s | 0.94 | 0.99 | 1.00 | 0.91 / 0.98 | 0.82 / 0.86 | 98 % |
+
+- **In docling** the model looks much worse than it is. LightOnOCR-3 writes tables as HTML,
+  docling's VLM pipeline reads the answer as markdown and escapes the HTML into text
+  (`&lt;table&gt;…`). Every table is lost, and that pulls body F1 down to 0.69. Docling also
+  caps the answer at 4'096 tokens, so a few dense pages end early (`partial_success`), and it
+  sends 8 pages at a time.
+- **Without docling** the model reads well: F1 0.94 and tables 0.99 on the made-up documents,
+  XFUND precision 0.98, and it is twice as fast as in docling. It is still 5× slower than
+  GLM-OCR + PP-DocLayout-V3 (482 s) and 7× slower than PP-OCRv6 + PP-DocLayout-V3 (328 s).
+  One page came back empty (page 11 of the Legislaturplan).
+
+The client is not a replacement for docling. It turns a PDF or an image into markdown, page by
+page, and that is all. What docling does for us that it doesn't:
+
+- **Text layers.** Docling takes the text of born-digital pages from the PDF and runs OCR only
+  on scans and pictures. The client has the 4B model retype every page, digital or not. That
+  is where the time goes, and why it reaches only 0.86 precision on the text layers (0.94 with
+  PP-OCRv6), against text that was there for free.
+- **Other formats.** The client reads PDFs and images. Docling also converts DOCX, PPTX, XLSX,
+  HTML and Markdown.
+- **Document structure.** The client returns markdown with a label and a box per block, and
+  tables as HTML. Docling returns a DoclingDocument: headings, lists, table cells, pictures
+  and captions, each with its page and box. The JSON export, our word boxes
+  (`include_word_boxes`) and docling's chunkers build on it.
+- **The service.** The client is a Python library and CLI. docling-serve gives us the HTTP API
+  with async jobs, the UI, OCR and layout chosen per request, and the image we deploy. Using
+  LightOn on its own would mean writing and running that service ourselves, next to a vLLM
+  server with the 4B model on a GPU for every page.
+
+The client does give us two things docling doesn't: a short description of each picture, and
+the data of charts as a table. If we want LightOnOCR-3 for handwriting or photos, the way in is
+through docling, once docling keeps its HTML tables.
 
 GLM-OCR's weak tables and headings come from the plugin, not the model: it returns one text
 cell per region, so docling can't build table cells or tell a heading from body text. The
