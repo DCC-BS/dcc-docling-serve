@@ -9,6 +9,14 @@ COPY install_onnxruntime_gpu.sh /tmp/install_onnxruntime_gpu.sh
 RUN ONNXRUNTIME_CUDA12_INDEX="${ONNXRUNTIME_CUDA12_INDEX}" sh /tmp/install_onnxruntime_gpu.sh install
 USER 0
 RUN sh /tmp/install_onnxruntime_gpu.sh register-libs
+# Legacy Office files (.doc/.dot, .rtf, .xls, .ppt): docling converts them to .docx/.xlsx/.pptx with
+# LibreOffice (docling/backend/docx/drawingml/utils.py, convert_to_modern_format) and fails with
+# "An unexpected error occurred while opening the document" when soffice is missing.
+# Writer, Calc and Impress only, no weak deps (no Java, no GUI extras): about +650 MB.
+RUN dnf install -y --setopt=install_weak_deps=False --setopt=tsflags=nodocs \
+        libreoffice-writer libreoffice-calc libreoffice-impress \
+    && dnf clean all && rm -rf /var/cache/dnf \
+    && soffice --version
 # Back to the upstream image's user
 USER 1001
 

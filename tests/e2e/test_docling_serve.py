@@ -131,3 +131,28 @@ def test_ppdoclayout_default_ocr(docling_serve_url, ocr_image_path):
     )
     md = _extract_markdown(body)
     assert len(md.strip()) > 0, "Expected non-empty markdown with PP-DocLayout-V3 layout"
+
+
+# ── Legacy Office formats (LibreOffice in the image) ──────────────────
+
+
+@pytest.mark.e2e
+def test_legacy_word_doc(docling_serve_url, legacy_doc_path):
+    """A Word 97 .doc converts: without soffice in the image docling fails to open it."""
+    payload = {
+        "sources": [
+            {
+                "kind": "file",
+                "base64_string": base64.b64encode(legacy_doc_path.read_bytes()).decode("utf-8"),
+                "filename": legacy_doc_path.name,
+            }
+        ],
+        "options": {"to_formats": ["md"]},
+    }
+    response = httpx.post(f"{docling_serve_url}/v1/convert/source", json=payload, timeout=TIMEOUT)
+    response.raise_for_status()
+    body = response.json()
+    assert body["status"] == "success", body.get("errors")
+    md = _extract_markdown(body)
+    assert "Wegleitung Testdokument" in md
+    assert "Punkt zwei" in md

@@ -51,3 +51,9 @@ def ocr_image_path():
 @pytest.fixture()
 def ocr_no_text_image_path():
     return DATA_DIR / "ocr_no_text.jpg"
+
+
+@pytest.fixture()
+def legacy_doc_path():
+    """A Word 97 (.doc, OLE2) file: docling converts it to .docx with LibreOffice first."""
+    return DATA_DIR / "legacy_word97.doc"
