@@ -881,6 +881,17 @@ docker inspect ghcr.io/dcc-bs/dcc-docling-serve:v1.38.2 \
   --format '{{ index .Config.Labels "org.opencontainers.image.base.name" }} {{ index .Config.Labels "org.opencontainers.image.base.digest" }}'
 ```
 
+Each image is pushed with an SBOM: an SPDX list of its OS and Python packages and of the
+models it holds. The models this repository bakes in (PP-DocLayout-V3, PP-OCRv6 detection
+and recognition) are written to `dcc-models.cdx.json` in the models directory at build time
+by `plugins/models_sbom.py`, with the pinned commit and the SHA-256 of each file, so the
+list follows the revisions in the Dockerfile without being edited by hand. To read the SBOM:
+
+```bash
+docker buildx imagetools inspect ghcr.io/dcc-bs/dcc-docling-serve:v1.38.2 \
+  --format '{{ json (index .SBOM "linux/amd64").SPDX.packages }}'
+```
+
 ## License
 
 MIT
