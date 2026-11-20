@@ -250,6 +250,16 @@ every image whose torch has CUDA support. CPU images are left unchanged.
 No request option is needed. docling already enables CUDA for RapidOCR when the
 accelerator device is CUDA, which it is by default when a GPU is visible.
 
+## Legacy Office files (.doc, .rtf, .xls, .ppt)
+
+docling converts Word 97–2003 (`.doc`, `.dot`), RTF, `.xls` and `.ppt` files to their modern
+counterparts with LibreOffice before parsing them (`convert_to_modern_format` in
+`docling/backend/docx/drawingml/utils.py`). The upstream image has no LibreOffice, so these files
+fail with "An unexpected error occurred while opening the document …". The image installs
+LibreOffice Writer, Calc and Impress from the base image's AppStream repo (no weak deps, about
++650 MB). docling runs each conversion as a throwaway `soffice` process with its own profile in a
+temporary directory and a 120 s timeout (`convert_to_modern_format`), so the container needs a writable `/tmp`.
+
 ## Health-probe log muting
 
 Kubernetes/Compose liveness probes hitting `GET /health` produce two INFO records
