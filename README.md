@@ -258,7 +258,7 @@ counterparts with LibreOffice before parsing them (`convert_to_modern_format` in
 fail with "An unexpected error occurred while opening the document …". The image installs
 LibreOffice Writer, Calc and Impress from the base image's AppStream repo (no weak deps, about
 +650 MB). docling runs each conversion as a throwaway `soffice` process with its own profile in a
-temporary directory and a 60 s timeout, so the container needs a writable `/tmp`.
+temporary directory and a 120 s timeout (`convert_to_modern_format`), so the container needs a writable `/tmp`.
 
 ## Health-probe log muting
 
