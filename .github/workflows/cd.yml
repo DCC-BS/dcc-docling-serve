@@ -93,6 +93,9 @@ jobs:
             DOCLING_SERVE_TAG=${{ inputs.version }}@${{ steps.upstream.outputs.digest }}
           platforms: ${{ matrix.variant.platforms }}
           push: true
+          # SPDX scan of each image (syft), pushed with it; it includes the models listed in the
+          # image's *.cdx.json files
+          sbom: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}${{ matrix.variant.suffix }}:${{ inputs.version }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}${{ matrix.variant.suffix }}:latest
