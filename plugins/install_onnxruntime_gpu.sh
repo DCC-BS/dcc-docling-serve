@@ -31,6 +31,10 @@ install)
         # PyPI builds of onnxruntime-gpu target CUDA 13; stay on the upstream version if possible.
         pip install --no-cache-dir --no-deps "onnxruntime-gpu==${ORT_VERSION}" \
             || pip install --no-cache-dir --no-deps onnxruntime-gpu
+        # The CUDA provider links against cuRAND, which torch >= 2.15 (CUDA 13.2,
+        # docling-serve >= v1.39.0 base image) no longer installs.
+        python -c 'import importlib.metadata as m; m.version("nvidia-curand")' 2>/dev/null \
+            || pip install --no-cache-dir --no-deps "nvidia-curand>=10,<11"
         ;;
     12.*)
         pip install --no-cache-dir --no-deps --index-url "${ONNXRUNTIME_CUDA12_INDEX}" onnxruntime-gpu
