@@ -14,8 +14,8 @@ image that bundles two community plugins:
 | `ghcr.io/dcc-bs/dcc-docling-serve-cu128` | `docling-serve-cu128` | linux/amd64 | CUDA 12.8, torch from cu128 index |
 | `ghcr.io/dcc-bs/dcc-docling-serve-cu130` | `docling-serve-cu130` | linux/amd64 | CUDA 13.0, torch from cu130 index |
 
-Each image is tagged with the docling-serve version it is built on (e.g. `v1.38.2`) and `:latest`:
-`dcc-docling-serve:v1.38.2` is docling-serve v1.38.2 with our plugins and patches.
+Each image is tagged with the docling-serve version it is built on (e.g. `v1.39.0`) and `:latest`:
+`dcc-docling-serve:v1.39.0` is docling-serve v1.39.0 with our plugins and patches.
 
 ## Plugins
 
@@ -767,7 +767,7 @@ check to the upgrade list below that lists still appear.
 
 Our image changes upstream in a few places (plugins, GPU OCR, the words
 of each page). Check each one before publishing an image built on a new docling-serve
-version (replace `v1.38.2` with the new tag). Build the image first (step 2) for the checks that use it.
+version (replace `v1.39.0` with the new tag). Build the image first (step 2) for the checks that use it.
 
 1. **Plugins in the web UI.** We ship upstream's UI unchanged. Check that the plugins
    still show up where the UI reads its choices from: `glm-ocr-remote` under the OCR
@@ -789,7 +789,7 @@ version (replace `v1.38.2` with the new tag). Build the image first (step 2) for
 
    ```bash
    docker build --build-arg DOCLING_SERVE_IMAGE=ghcr.io/docling-project/docling-serve-cu130 \
-     --build-arg DOCLING_SERVE_TAG=v1.38.2 -t dcc-docling-serve-test:cu130 \
+     --build-arg DOCLING_SERVE_TAG=v1.39.0 -t dcc-docling-serve-test:cu130 \
      -f plugins/Dockerfile.docling-serve plugins/
    ```
 
@@ -831,7 +831,7 @@ version (replace `v1.38.2` with the new tag). Build the image first (step 2) for
    (the CELEX regulation) should not be OCR-bound:
 
    ```bash
-   uv run --script benchmarks/e2e_timing.py --docs benchmarks/internal/docs --tag v1.38.2 --variants official-cu130 custom-cu130 \
+   uv run --script benchmarks/e2e_timing.py --docs benchmarks/internal/docs --tag v1.39.0 --variants official-cu130 custom-cu130 \
      --image custom-cu130=dcc-docling-serve-test:cu130
    ```
 
@@ -843,10 +843,10 @@ version (replace `v1.38.2` with the new tag). Build the image first (step 2) for
    dcc-docling-serve-test:cu130` should show the `pp-rules` numbers from the table above.
 
 8. **Publish.** Merge to `main`, then run the *Build docling-serve with layout and OCR
-   plugins* workflow with `version=v1.38.2`:
+   plugins* workflow with `version=v1.39.0`:
 
    ```bash
-   gh workflow run cd.yml -f version=v1.38.2
+   gh workflow run cd.yml -f version=v1.39.0
    ```
 
 9. **Documentation.** Update the docling pages of the documentation repo
@@ -864,7 +864,7 @@ Runs on push/PR: lint with ruff.
 
 Builds and pushes the patched docling-serve images (default, `-cpu`, `-cu128`, `-cu130`)
 to GHCR. It runs **only when dispatched manually** (Actions → *Build docling-serve with
-layout and OCR plugins* → Run workflow, or `gh workflow run cd.yml -f version=v1.38.2`);
+layout and OCR plugins* → Run workflow, or `gh workflow run cd.yml -f version=v1.39.0`);
 pushing to `main` never publishes an image. Its one input, `version`, is a docling-serve
 release tag: every variant is built on that upstream tag and published under the same tag
 and `:latest`. Moving tags such as `main` or `latest` are refused.
@@ -877,7 +877,7 @@ that digest, so all variants of one run share the same base. The digest is shown
 run summary and stored in the image labels:
 
 ```bash
-docker inspect ghcr.io/dcc-bs/dcc-docling-serve:v1.38.2 \
+docker inspect ghcr.io/dcc-bs/dcc-docling-serve:v1.39.0 \
   --format '{{ index .Config.Labels "org.opencontainers.image.base.name" }} {{ index .Config.Labels "org.opencontainers.image.base.digest" }}'
 ```
 

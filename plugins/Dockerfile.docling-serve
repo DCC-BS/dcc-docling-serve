@@ -1,6 +1,6 @@
 ARG DOCLING_SERVE_IMAGE=ghcr.io/docling-project/docling-serve
 # The release CI builds on (DOCLING_SERVE_VERSION in .github/workflows/ci.yml); CD passes its own
-ARG DOCLING_SERVE_TAG=v1.38.2
+ARG DOCLING_SERVE_TAG=v1.39.0
 FROM ${DOCLING_SERVE_IMAGE}:${DOCLING_SERVE_TAG}
 
 # GPU images: run RapidOCR's onnxruntime on the GPU instead of the CPU (no-op on CPU images)
