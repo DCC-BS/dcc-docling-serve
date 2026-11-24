@@ -63,6 +63,15 @@ PPOCRv6Model._ensure_rec_keys(models / 'rec')" \
         "${PP_OCRV6_DET_REPO}" "${PP_OCRV6_DET_REVISION}" "${PP_OCRV6_REC_REPO}" "${PP_OCRV6_REC_REVISION}" \
     && find "${DOCLING_SERVE_ARTIFACTS_PATH}/PPOCRv6" -name .cache -type d -prune -exec rm -rf {} +
 
+# List the models baked in above, with their commits and file digests, where the image SBOM
+# (cd.yml, sbom: true) picks them up. docling-serve images built on a docling release with
+# docling-project/docling#5489 list their own models in models.cdx.json next to it.
+COPY models_sbom.py /tmp/models_sbom.py
+RUN python /tmp/models_sbom.py "${DOCLING_SERVE_ARTIFACTS_PATH}/dcc-models.cdx.json" \
+        "${PP_DOC_LAYOUT_MODEL_REPO}@${PP_DOC_LAYOUT_MODEL_REVISION}=${PP_DOC_LAYOUT_MODEL_NAME}" \
+        "${PP_OCRV6_DET_REPO}@${PP_OCRV6_DET_REVISION}=${DOCLING_SERVE_ARTIFACTS_PATH}/PPOCRv6/det" \
+        "${PP_OCRV6_REC_REPO}@${PP_OCRV6_REC_REVISION}=${DOCLING_SERVE_ARTIFACTS_PATH}/PPOCRv6/rec"
+
 # Mute health-probe log records (site-packages drop-in, no upstream file touched)
 COPY mute_health_logs.py /tmp/mute_health_logs.py
 RUN SP="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
