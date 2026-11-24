@@ -749,16 +749,20 @@ as a second opinion (`heron`). Details in the plugin README.
 `benchmarks/list_eval/` holds the benchmark: `make_lists.py` generates list pages with exact
 ground truth (born-digital and scanned, with traps such as numbered headings, dates and
 amounts), `run_all.sh <image>` converts them and the test documents with Heron and with
-PP-DocLayout-V3 in each mode, `evaluate.py` scores them. Results with plugin 0.2.6:
+PP-DocLayout-V3 in each mode, `evaluate.py` scores them. Results with plugin 0.3.0 on
+docling-serve v1.39.0 (RTX 4090):
 
 | Configuration | Born-digital R / P | Scanned R / P | Traps as list items | Bullet lines found | Time |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Heron (docling default) | 0.67 / 0.96 | 0.97 / 0.95 | 2 | 245 / 251 | 136 s |
-| PP-DocLayout-V3, `off` | 0 | 0 | 0 | 0 / 251 | 145 s |
-| PP-DocLayout-V3, `rules` | 1.00 / 1.00 | 0.86 / 1.00 | 0 | 231 / 251 | 145 s |
-| PP-DocLayout-V3, `heron` | 1.00 / 1.00 | 0.94 / 0.94 | 1 | 231 / 251 | 153 s |
+| Heron (docling default) | 0.67 / 0.96 | 0.94 / 0.92 | 2 | 218 / 257 | 115 s |
+| PP-DocLayout-V3, `off` | 0 | 0 | 0 | 0 / 257 | 117 s |
+| PP-DocLayout-V3, `rules` | 1.00 / 1.00 | 0.83 / 1.00 | 0 | 204 / 257 | 122 s |
+| PP-DocLayout-V3, `heron` | 1.00 / 1.00 | 0.94 / 0.94 | 1 | 204 / 257 | 131 s |
 
-13 of the 20 bullet lines PP-DocLayout-V3 misses are the brochure's commission list, which it
+On v1.38.2 the scans scored 0.97 / 0.95 (Heron) and 0.86 / 1.00 (`rules`), the rest the same:
+docling-parse 7.27 renders scanned pages a little differently for OCR, which garbles other
+lines of the synthetic scans. Heron misses 39 of the bullet lines as well; 12 of the lines
+only PP-DocLayout-V3 misses are the brochure's commission list, which it
 lays out as a picture (the text is in the JSON output, inside the picture). List detection
 runs inside docling's layout post-processing, which has no plugin interface yet; add a
 check to the upgrade list below that lists still appear.
